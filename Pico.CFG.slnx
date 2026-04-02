@@ -1,12 +1,12 @@
 <Solution>
   <Folder Name="/samples/">
-    <Project Path="samples/Pico.CFG.Sample/Pico.Cfg.Sample.csproj" Type="Classic C#" />
+    <Project Path="samples/Pico.CFG.Sample/Pico.Cfg.Sample.csproj" Type="C#" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/Pico.Cfg.Abs/Pico.Cfg.Abs.csproj" Type="Classic C#" />
-    <Project Path="src/Pico.Cfg/Pico.Cfg.csproj" Type="Classic C#" />
+    <Project Path="src/Pico.Cfg.Abs/Pico.Cfg.Abs.csproj" Type="C#" />
+    <Project Path="src/Pico.Cfg/Pico.Cfg.csproj" Type="C#" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Pico.CFG.Tests/Pico.Cfg.Tests.csproj" Type="Classic C#" />
+    <Project Path="tests/Pico.CFG.Tests/Pico.Cfg.Tests.csproj" Type="C#" />
   </Folder>
 </Solution>
