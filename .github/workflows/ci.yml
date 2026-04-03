@@ -40,13 +40,13 @@ jobs:
           ${{ runner.os }}-nuget-
     
     - name: Restore dependencies
-      run: dotnet restore tests/Pico.CFG.Tests/Pico.Cfg.Tests.csproj -p:UseProjectReferences=true
+      run: dotnet restore tests/PicoCfg.Tests/PicoCfg.Tests.csproj -p:UseProjectReferences=true
     
     - name: Build
-      run: dotnet build tests/Pico.CFG.Tests/Pico.Cfg.Tests.csproj --configuration Release --no-restore -p:UseProjectReferences=true
+      run: dotnet build tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-restore -p:UseProjectReferences=true
     
     - name: Run tests
-      run: dotnet test --project tests/Pico.CFG.Tests/Pico.Cfg.Tests.csproj --configuration Release --no-build --verbosity normal -p:UseProjectReferences=true
+      run: dotnet test --project tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-build --verbosity normal -p:UseProjectReferences=true
 
   pack:
     name: Pack
@@ -85,7 +85,7 @@ jobs:
         mkdir -p ./nupkg
         
         # Pack abstractions first
-        dotnet pack src/Pico.Cfg.Abs/Pico.Cfg.Abs.csproj \
+        dotnet pack src/PicoCfg.Abs/PicoCfg.Abs.csproj \
           --configuration Release \
           --output ./nupkg \
           -p:Version=${{ steps.version.outputs.VERSION }} \
@@ -94,7 +94,7 @@ jobs:
           -p:Deterministic=true
         
         # Pack main project, using packed abstractions as additional source
-        dotnet pack src/Pico.Cfg/Pico.Cfg.csproj \
+        dotnet pack src/PicoCfg/PicoCfg.csproj \
           --configuration Release \
           --output ./nupkg \
           -p:Version=${{ steps.version.outputs.VERSION }} \
@@ -152,11 +152,11 @@ jobs:
       run: xcode-select --install || true
     
     - name: Restore dependencies for AOT
-      run: dotnet restore samples/Pico.CFG.Sample -r ${{ matrix.runtime }}
+      run: dotnet restore samples/PicoCfg.Sample -r ${{ matrix.runtime }}
     
     - name: Build AOT sample
       run: |
-        dotnet publish samples/Pico.CFG.Sample \
+        dotnet publish samples/PicoCfg.Sample \
           -c Release \
           -r ${{ matrix.runtime }} \
           -p:PublishAOT=true \

@@ -1,6 +1,6 @@
-# Pico.CFG
+# PicoCfg
 
-[![CI](https://github.com/PicoHex/Pico.CFG/actions/workflows/ci.yml/badge.svg)](https://github.com/PicoHex/Pico.CFG/actions/workflows/ci.yml)
+[![CI](https://github.com/PicoHex/PicoCfg/actions/workflows/ci.yml/badge.svg)](https://github.com/PicoHex/PicoCfg/actions/workflows/ci.yml)
 
 A lightweight, async-first configuration management framework from PicoHex, designed for AOT compatibility and edge computing scenarios.
 
@@ -17,15 +17,15 @@ A lightweight, async-first configuration management framework from PicoHex, desi
 ## Installation
 
 ```bash
-dotnet add package Pico.Cfg.Abs
-dotnet add package Pico.Cfg
+dotnet add package PicoCfg.Abs
+dotnet add package PicoCfg
 ```
 
 ## Quick Start
 
 ```csharp
-using Pico.CFG;
-using Pico.CFG.Extensions;
+using PicoCfg;
+using PicoCfg.Extensions;
 
 var builder = CFG.CreateBuilder();
 
@@ -42,15 +42,15 @@ Console.WriteLine($"Connection: {connectionString}");
 
 ## Architecture
 
-Pico.CFG follows a clean abstraction/implementation separation:
+PicoCfg follows a clean abstraction/implementation separation:
 
-- **Pico.Cfg.Abs**: Interface contracts for configuration management
-- **Pico.Cfg**: Concrete implementations and extension methods
+- **PicoCfg.Abs**: Interface contracts for configuration management
+- **PicoCfg**: Concrete implementations and extension methods
 - **Extensions**: Convenient helper methods for common scenarios
 
 ## AOT Compatibility
 
-Pico.CFG is fully compatible with Native AOT compilation:
+PicoCfg is fully compatible with Native AOT compilation:
 
 - No reflection API usage
 - No dynamic code generation
@@ -66,8 +66,8 @@ dotnet publish -c Release -r win-x64 -p:PublishAOT=true --self-contained
 ## Building from Source
 
 ```bash
-git clone https://github.com/PicoHex/Pico.CFG.git
-cd Pico.CFG
+git clone https://github.com/PicoHex/PicoCfg.git
+cd PicoCfg
 dotnet build --configuration Release
 ```
 
