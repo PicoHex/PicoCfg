@@ -9,7 +9,7 @@ A lightweight, async-first configuration management framework from PicoHex, desi
 - **Async-first API**: All operations support async/await with cancellation tokens
 - **AOT-compatible**: No reflection, dynamic code generation, or runtime type discovery
 - **Multiple configuration sources**: Support for strings, dictionaries, streams, and custom sources
-- **Change notification**: Built-in support for configuration change monitoring
+- **Change notification**: Built-in support for reload-driven configuration change monitoring
 - **Priority-based override**: Later sources override earlier ones
 - **Minimal dependencies**: Self-contained implementation with no external dependencies
 - **SourceLink support**: Source-level debugging from NuGet packages
@@ -27,7 +27,7 @@ dotnet add package PicoCfg
 using PicoCfg;
 using PicoCfg.Extensions;
 
-var builder = CFG.CreateBuilder();
+var builder = Cfg.CreateBuilder();
 
 builder
     .Add("Database.ConnectionString=localhost:3306")
@@ -36,9 +36,13 @@ builder
 
 var configRoot = await builder.BuildAsync();
 
-var connectionString = await configRoot.GetValueAsync("Database.ConnectionString");
+var connectionString = configRoot.Snapshot.GetValue("Database.ConnectionString");
 Console.WriteLine($"Connection: {connectionString}");
 ```
+
+Configuration values are resolved from the composed snapshot, and later sources override earlier ones.
+`WatchAsync` returns a one-shot change signal for the current snapshot version. That signal changes after
+`ReloadAsync` publishes a different composed snapshot.
 
 ## Architecture
 

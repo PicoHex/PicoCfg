@@ -3,6 +3,18 @@ namespace PicoCfg.Tests;
 public class StreamCfgTests
 {
     [Test]
+    public async Task StreamCFGSource_WithNullFactory_ThrowsArgumentNullException()
+    {
+        await Assert.That(() => new StreamCfgSource(null!)).Throws<ArgumentNullException>();
+    }
+
+    [Test]
+    public async Task StreamCFGProvider_WithNullFactory_ThrowsArgumentNullException()
+    {
+        await Assert.That(() => new StreamCfgProvider(null!)).Throws<ArgumentNullException>();
+    }
+
+    [Test]
     public async Task StreamCFGSource_BuildProviderAsync_ReturnsProvider()
     {
         var streamFactory = () =>
@@ -170,6 +182,14 @@ public class StreamCfgTests
 
         var latestSignal = await provider.WatchAsync();
         await Assert.That(latestSignal.HasChanged).IsFalse();
+    }
+
+    [Test]
+    public async Task StreamCFGProvider_LoadAsync_WhenFactoryReturnsNull_ThrowsInvalidOperationException()
+    {
+        var provider = new StreamCfgProvider(() => null!);
+
+        await Assert.That(async () => await provider.ReloadAsync()).Throws<InvalidOperationException>();
     }
 
     [Test]

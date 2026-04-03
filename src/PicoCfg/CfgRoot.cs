@@ -1,5 +1,7 @@
 namespace PicoCfg;
 
+using System.Runtime.ExceptionServices;
+
 internal sealed class CfgRoot : ICfgRoot
 {
     private readonly Lock _syncRoot = new();
@@ -40,8 +42,28 @@ internal sealed class CfgRoot : ICfgRoot
 
     public async ValueTask DisposeAsync()
     {
-        foreach (var provider in _providers)
-            await provider.DisposeAsync();
+        List<Exception>? exceptions = null;
+
+        for (var i = _providers.Count - 1; i >= 0; i--)
+        {
+            try
+            {
+                await _providers[i].DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                exceptions ??= [];
+                exceptions.Add(ex);
+            }
+        }
+
+        if (exceptions is null)
+            return;
+
+        if (exceptions.Count is 1)
+            ExceptionDispatchInfo.Throw(exceptions[0]);
+
+        throw new AggregateException(exceptions);
     }
 
     private void PublishSnapshot()

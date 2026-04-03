@@ -14,6 +14,14 @@ public class CfgBuilderTests
     }
 
     [Test]
+    public async Task AddSource_WithNullSource_ThrowsArgumentNullException()
+    {
+        var builder = Cfg.CreateBuilder();
+
+        await Assert.That(() => builder.AddSource(null!)).Throws<ArgumentNullException>();
+    }
+
+    [Test]
     public async Task BuildAsync_WithNoSources_ReturnsRootWithEmptyProviders()
     {
         var builder = Cfg.CreateBuilder();
@@ -48,6 +56,22 @@ public class CfgBuilderTests
         var root = await builder.BuildAsync();
 
         await Assert.That(root.Snapshot.GetValue("shared")).IsEqualTo("second");
+    }
+
+    [Test]
+    public async Task BuildAsync_WhenLaterSourceFails_DisposesAlreadyOpenedProviders()
+    {
+        var builder = Cfg.CreateBuilder();
+        var firstProvider = new TrackingProvider("first", "value");
+        var secondProvider = new TrackingProvider("second", "value");
+
+        builder.AddSource(new TrackingSource(firstProvider));
+        builder.AddSource(new TrackingSource(secondProvider));
+        builder.AddSource(new FailingSource());
+
+        await Assert.That(async () => await builder.BuildAsync()).Throws<InvalidOperationException>();
+        await Assert.That(firstProvider.DisposeCalled).IsTrue();
+        await Assert.That(secondProvider.DisposeCalled).IsTrue();
     }
 
     private class MockSource(string key = "sourceKey", string value = "sourceValue") : ICfgSource
@@ -96,6 +120,44 @@ public class CfgBuilderTests
 
         public ValueTask WaitForChangeAsync(CancellationToken ct = default)
         {
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class TrackingSource(TrackingProvider provider) : ICfgSource
+    {
+        public ValueTask<ICfgProvider> OpenAsync(CancellationToken ct = default)
+        {
+            return ValueTask.FromResult<ICfgProvider>(provider);
+        }
+    }
+
+    private sealed class FailingSource : ICfgSource
+    {
+        public ValueTask<ICfgProvider> OpenAsync(CancellationToken ct = default)
+        {
+            throw new InvalidOperationException("Source open failed.");
+        }
+    }
+
+    private sealed class TrackingProvider(string key, string value) : ICfgProvider
+    {
+        public bool DisposeCalled { get; private set; }
+        public ICfgSnapshot Snapshot { get; } = new MockSnapshot(key, value);
+
+        public ValueTask ReloadAsync(CancellationToken ct = default)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<ICfgChangeSignal> WatchAsync(CancellationToken ct = default)
+        {
+            return ValueTask.FromResult<ICfgChangeSignal>(new MockChangeToken());
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            DisposeCalled = true;
             return ValueTask.CompletedTask;
         }
     }

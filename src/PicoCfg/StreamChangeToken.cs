@@ -62,7 +62,7 @@ public class StreamChangeToken : ICfgChangeSignal
     }
 }
 
-public static class CancellationTokenExtensions
+internal static class CancellationTokenExtensions
 {
     public static Task WaitForCancellationAsync(this CancellationToken ct, bool throwOnCancellation = true)
     {

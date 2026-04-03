@@ -126,15 +126,53 @@ public class CfgRootTests
         await Assert.That(provider.DisposeCalled).IsTrue();
     }
 
+    [Test]
+    public async Task DisposeAsync_WhenProviderDisposeFails_DisposesRemainingProviders()
+    {
+        var firstProvider = new MockProvider(
+            [new Dictionary<string, string> { ["first"] = "value" }],
+            disposeException: new InvalidOperationException("First dispose failed.")
+        );
+        var secondProvider = new MockProvider(
+            [new Dictionary<string, string> { ["second"] = "value" }],
+            disposeException: new InvalidOperationException("Second dispose failed.")
+        );
+        var root = new CfgRoot([firstProvider, secondProvider]);
+
+        var dispose = async () => await root.DisposeAsync();
+
+        await Assert.That(dispose).Throws<AggregateException>();
+        await Assert.That(firstProvider.DisposeCalled).IsTrue();
+        await Assert.That(secondProvider.DisposeCalled).IsTrue();
+    }
+
+    [Test]
+    public async Task DisposeAsync_WhenSingleProviderDisposeFails_RethrowsOriginalException()
+    {
+        var provider = new MockProvider(
+            [new Dictionary<string, string> { ["key"] = "value" }],
+            disposeException: new InvalidOperationException("Dispose failed.")
+        );
+        var root = new CfgRoot([provider]);
+
+        await Assert.That(async () => await root.DisposeAsync()).Throws<InvalidOperationException>();
+        await Assert.That(provider.DisposeCalled).IsTrue();
+    }
+
     private sealed class MockProvider : ICfgProvider
     {
         private readonly IReadOnlyList<IReadOnlyDictionary<string, string>> _snapshots;
+        private readonly Exception? _disposeException;
         private int _index;
         private ControllableMockChangeToken _changeToken = new();
 
-        public MockProvider(IReadOnlyList<IReadOnlyDictionary<string, string>> snapshots)
+        public MockProvider(
+            IReadOnlyList<IReadOnlyDictionary<string, string>> snapshots,
+            Exception? disposeException = null
+        )
         {
             _snapshots = snapshots;
+            _disposeException = disposeException;
             Snapshot = new MockSnapshot(_snapshots[0]);
         }
 
@@ -172,6 +210,10 @@ public class CfgRootTests
         public ValueTask DisposeAsync()
         {
             DisposeCalled = true;
+
+            if (_disposeException is not null)
+                return ValueTask.FromException(_disposeException);
+
             return ValueTask.CompletedTask;
         }
 

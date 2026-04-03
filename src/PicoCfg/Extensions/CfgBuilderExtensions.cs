@@ -1,6 +1,6 @@
 namespace PicoCfg.Extensions;
 
-public static class StreamCfgExtensions
+public static class CfgBuilderExtensions
 {
     extension(CfgBuilder builder)
     {
@@ -10,7 +10,7 @@ public static class StreamCfgExtensions
         public CfgBuilder Add(string configContent,
             Encoding? encoding = null
         ) =>
-            builder.Add(() =>
+            builder.AddSource(new StreamCfgSource(() =>
             {
                 var stream = new MemoryStream();
                 using var writer = new StreamWriter(stream, encoding ?? Encoding.UTF8, leaveOpen: true);
@@ -18,7 +18,7 @@ public static class StreamCfgExtensions
                 writer.Flush();
                 stream.Position = 0;
                 return stream;
-            });
+            }));
 
         public CfgBuilder Add(IDictionary<string, string> configData
         ) => builder.AddSource(new DictionaryCfgSource(configData));

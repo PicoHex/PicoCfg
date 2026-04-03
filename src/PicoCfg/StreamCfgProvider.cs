@@ -1,10 +1,17 @@
 namespace PicoCfg;
 
-public class StreamCfgProvider(Func<Stream> streamFactory) : ICfgProvider
+public class StreamCfgProvider : ICfgProvider
 {
     private readonly Lock _syncRoot = new();
+    private readonly Func<Stream> _streamFactory;
     private CfgSnapshot _snapshot = CfgSnapshot.Empty;
     private StreamChangeToken _changeToken = new();
+
+    public StreamCfgProvider(Func<Stream> streamFactory)
+    {
+        ArgumentNullException.ThrowIfNull(streamFactory);
+        _streamFactory = streamFactory;
+    }
 
     public ICfgSnapshot Snapshot
     {
@@ -17,7 +24,10 @@ public class StreamCfgProvider(Func<Stream> streamFactory) : ICfgProvider
 
     public async ValueTask ReloadAsync(CancellationToken ct = default)
     {
-        await using var stream = streamFactory();
+        var stream = _streamFactory()
+            ?? throw new InvalidOperationException("The stream factory returned null.");
+
+        await using var _ = stream;
         using var reader = new StreamReader(stream);
 
         var newData = new Dictionary<string, string>();
