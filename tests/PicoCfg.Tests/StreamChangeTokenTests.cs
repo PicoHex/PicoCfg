@@ -51,7 +51,7 @@ public class StreamChangeTokenTests
 
         var waitTask = token.WaitForChangeAsync(cts.Token).AsTask();
 
-        await Task.Delay(100);
+        await Task.Delay(100, cts.Token);
 
         await Assert.That(waitTask.IsCompleted).IsFalse();
 
@@ -72,11 +72,11 @@ public class StreamChangeTokenTests
 
         var waitTask = token.WaitForChangeAsync(cts.Token).AsTask();
 
-        await Task.Delay(100);
+        await Task.Delay(100, cts.Token);
 
         await Assert.That(waitTask.IsCompleted).IsFalse();
 
-        cts.Cancel();
+        await cts.CancelAsync();
 
         await waitTask;
 
@@ -119,7 +119,7 @@ public class StreamChangeTokenTests
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var waitTask2 = token.WaitForChangeAsync(cts.Token).AsTask();
 
-        await Task.Delay(100);
+        await Task.Delay(100, cts.Token);
         await Assert.That(waitTask2.IsCompleted).IsTrue();
     }
 
@@ -130,11 +130,11 @@ public class StreamChangeTokenTests
 
         var waitTask = cts.Token.WaitForCancellationAsync();
 
-        await Task.Delay(100);
+        await Task.Delay(100, cts.Token);
 
         await Assert.That(waitTask.IsCompleted).IsFalse();
 
-        cts.Cancel();
+        await cts.CancelAsync();
 
         await waitTask;
 

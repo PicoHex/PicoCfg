@@ -5,7 +5,7 @@ public class CfgRootTests
     [Test]
     public async Task GetValueAsync_WithNoProviders_ReturnsNull()
     {
-        var root = new CfgRoot(Array.Empty<ICfgProvider>());
+        var root = new CfgRoot([]);
 
         var value = await root.GetValueAsync("key");
 
@@ -16,7 +16,7 @@ public class CfgRootTests
     public async Task GetValueAsync_WithProviderReturningValue_ReturnsValue()
     {
         var mockProvider = new MockProviderWithValue("key", "value");
-        var root = new CfgRoot(new[] { mockProvider });
+        var root = new CfgRoot([mockProvider]);
 
         var value = await root.GetValueAsync("key");
 
@@ -29,7 +29,7 @@ public class CfgRootTests
         var mockProvider1 = new MockProviderWithValue("key", null);
         var mockProvider2 = new MockProviderWithValue("key", "value2");
         var mockProvider3 = new MockProviderWithValue("key", "value3");
-        var root = new CfgRoot(new[] { mockProvider1, mockProvider2, mockProvider3 });
+        var root = new CfgRoot([mockProvider1, mockProvider2, mockProvider3]);
 
         var value = await root.GetValueAsync("key");
 
@@ -41,7 +41,7 @@ public class CfgRootTests
     {
         var mockProvider1 = new MockProviderWithValue("key", "value1");
         var mockProvider2 = new MockProviderWithValue("key", "value2");
-        var root = new CfgRoot(new[] { mockProvider1, mockProvider2 });
+        var root = new CfgRoot([mockProvider1, mockProvider2]);
 
         var value = await root.GetValueAsync("key");
 
@@ -53,7 +53,7 @@ public class CfgRootTests
     {
         var mockProvider1 = new TrackableMockProvider();
         var mockProvider2 = new TrackableMockProvider();
-        var root = new CfgRoot(new[] { mockProvider1, mockProvider2 });
+        var root = new CfgRoot([mockProvider1, mockProvider2]);
 
         await root.ReloadAsync();
 
@@ -64,7 +64,7 @@ public class CfgRootTests
     [Test]
     public async Task GetChildrenAsync_WithNoProviders_ReturnsEmpty()
     {
-        var root = new CfgRoot(Array.Empty<ICfgProvider>());
+        var root = new CfgRoot([]);
 
         var children = new List<ICfgNode>();
         await foreach (var child in root.GetChildrenAsync())
@@ -80,7 +80,7 @@ public class CfgRootTests
     {
         var mockProvider1 = new MockProviderWithChildren("child1", "child2");
         var mockProvider2 = new MockProviderWithChildren("child3", "child4");
-        var root = new CfgRoot(new[] { mockProvider1, mockProvider2 });
+        var root = new CfgRoot([mockProvider1, mockProvider2]);
 
         var children = new List<ICfgNode>();
         await foreach (var child in root.GetChildrenAsync())
@@ -99,7 +99,7 @@ public class CfgRootTests
     public async Task WatchAsync_ReturnsCompositeChangeToken()
     {
         var mockProvider = new MockProviderWithChangeToken();
-        var root = new CfgRoot(new[] { mockProvider });
+        var root = new CfgRoot([mockProvider]);
 
         var changeToken = await root.WatchAsync();
 
@@ -110,7 +110,7 @@ public class CfgRootTests
     public async Task WatchAsync_CompositeChangeToken_ReflectsProviderChanges()
     {
         var mockProvider = new MockProviderWithChangeToken();
-        var root = new CfgRoot(new[] { mockProvider });
+        var root = new CfgRoot([mockProvider]);
 
         await root.ReloadAsync();
         var changeToken = await root.WatchAsync();
@@ -126,7 +126,7 @@ public class CfgRootTests
     public async Task ReloadAsync_UpdatesChangeToken()
     {
         var mockProvider = new MockProviderWithChangeToken();
-        var root = new CfgRoot(new[] { mockProvider });
+        var root = new CfgRoot([mockProvider]);
 
         var changeToken1 = await root.WatchAsync();
         await Assert.That(changeToken1).IsNotNull();
@@ -144,14 +144,14 @@ public class CfgRootTests
     {
         var mockProvider1 = new MockProviderWithChangeToken();
         var mockProvider2 = new MockProviderWithChangeToken();
-        var root = new CfgRoot(new[] { mockProvider1, mockProvider2 });
+        var root = new CfgRoot([mockProvider1, mockProvider2]);
 
         await root.ReloadAsync();
         var changeToken = await root.WatchAsync();
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var waitTask = changeToken.WaitForChangeAsync(cts.Token).AsTask();
 
-        await Task.Delay(100);
+        await Task.Delay(100, cts.Token);
         await Assert.That(waitTask.IsCompleted).IsFalse();
 
         mockProvider1.ChangeToken.NotifyChanged();
@@ -160,25 +160,16 @@ public class CfgRootTests
         await Assert.That(waitTask.IsCompleted).IsTrue();
     }
 
-    private class MockProviderWithValue : ICfgProvider
+    private class MockProviderWithValue(string key, string? value) : ICfgProvider
     {
-        private readonly string _key;
-        private readonly string? _value;
-
-        public MockProviderWithValue(string key, string? value)
-        {
-            _key = key;
-            _value = value;
-        }
-
         public ValueTask LoadAsync(CancellationToken ct = default)
         {
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<string?> GetValueAsync(string key, CancellationToken ct = default)
+        public ValueTask<string?> GetValueAsync(string key1, CancellationToken ct = default)
         {
-            return ValueTask.FromResult(key == _key ? _value : null);
+            return ValueTask.FromResult(key1 == key ? value : null);
         }
 
         public async IAsyncEnumerable<ICfgNode> GetChildrenAsync(
@@ -224,15 +215,8 @@ public class CfgRootTests
         }
     }
 
-    private class MockProviderWithChildren : ICfgProvider
+    private class MockProviderWithChildren(params string[] childNames) : ICfgProvider
     {
-        private readonly string[] _childNames;
-
-        public MockProviderWithChildren(params string[] childNames)
-        {
-            _childNames = childNames;
-        }
-
         public ValueTask LoadAsync(CancellationToken ct = default)
         {
             return ValueTask.CompletedTask;
@@ -247,7 +231,7 @@ public class CfgRootTests
             [EnumeratorCancellation] CancellationToken ct = default
         )
         {
-            foreach (var name in _childNames)
+            foreach (var name in childNames)
             {
                 await Task.CompletedTask;
                 yield return new MockNode(name);
@@ -260,14 +244,9 @@ public class CfgRootTests
         }
     }
 
-    private class MockNode : ICfgNode
+    private class MockNode(string name) : ICfgNode
     {
-        public string Name { get; }
-
-        public MockNode(string name)
-        {
-            Name = name;
-        }
+        public string Name { get; } = name;
 
         public ValueTask<string?> GetValueAsync(string key, CancellationToken ct = default)
         {
@@ -318,26 +297,24 @@ public class CfgRootTests
 
     private class ControllableMockChangeToken : IAsyncChangeToken
     {
-        private bool _hasChanged;
         private CancellationTokenSource _cts = new();
 
-        public bool HasChanged => _hasChanged;
+        public bool HasChanged { get; private set; }
 
         public void NotifyChanged()
         {
-            _hasChanged = true;
+            HasChanged = true;
             _cts.Cancel();
         }
 
         public void Reset()
         {
-            _hasChanged = false;
-            if (_cts.IsCancellationRequested)
-            {
-                var oldCts = _cts;
-                _cts = new CancellationTokenSource();
-                oldCts.Dispose();
-            }
+            HasChanged = false;
+            if (!_cts.IsCancellationRequested)
+                return;
+            var oldCts = _cts;
+            _cts = new CancellationTokenSource();
+            oldCts.Dispose();
         }
 
         public ValueTask WaitForChangeAsync(CancellationToken ct = default)
