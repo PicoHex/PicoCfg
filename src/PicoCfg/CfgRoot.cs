@@ -1,75 +1,94 @@
 namespace PicoCfg;
 
-internal class CfgRoot(IEnumerable<ICfgProvider> providers) : ICfgRoot
+internal sealed class CfgRoot : ICfgRoot
 {
-    private readonly List<ICfgProvider> _providers = [.. providers];
     private readonly Lock _syncRoot = new();
-    private CompositeChangeToken _currentChangeToken = new([]);
+    private readonly List<ICfgProvider> _providers;
+    private ICfgSnapshot[] _providerSnapshots;
+    private ICfgSnapshot _snapshot;
+    private StreamChangeToken _changeToken = new();
 
-    public IReadOnlyList<ICfgProvider> Providers => _providers;
+    public CfgRoot(IEnumerable<ICfgProvider> providers)
+    {
+        _providers = [.. providers];
+        _providerSnapshots = _providers.Select(static provider => provider.Snapshot).ToArray();
+        _snapshot = new CompositeCfgSnapshot(_providerSnapshots);
+    }
+
+    public ICfgSnapshot Snapshot
+    {
+        get
+        {
+            lock (_syncRoot)
+                return _snapshot;
+        }
+    }
 
     public async ValueTask ReloadAsync(CancellationToken ct = default)
     {
         foreach (var provider in _providers)
-            await provider.LoadAsync(ct);
-        UpdateChangeToken();
+            await provider.ReloadAsync(ct);
+
+        PublishSnapshot();
     }
 
-    public async ValueTask<string?> GetValueAsync(string key, CancellationToken ct = default)
+    public ValueTask<ICfgChangeSignal> WatchAsync(CancellationToken ct = default)
     {
-        foreach (var provider in Enumerable.Reverse(_providers))
-        {
-            var value = await provider.GetValueAsync(key, ct);
-            if (value != null)
-                return value;
-        }
-        return null;
+        lock (_syncRoot)
+            return ValueTask.FromResult<ICfgChangeSignal>(_changeToken);
     }
 
-    public async IAsyncEnumerable<ICfgNode> GetChildrenAsync(
-        [EnumeratorCancellation] CancellationToken ct = default
-    )
+    public async ValueTask DisposeAsync()
     {
         foreach (var provider in _providers)
-        await foreach (var child in provider.GetChildrenAsync(ct))
-            yield return child;
+            await provider.DisposeAsync();
     }
 
-    public ValueTask<IAsyncChangeToken> WatchAsync(CancellationToken ct = default)
+    private void PublishSnapshot()
     {
-        lock (_syncRoot)
-            return ValueTask.FromResult<IAsyncChangeToken>(_currentChangeToken);
-    }
+        var providerSnapshots = _providers.Select(static provider => provider.Snapshot).ToArray();
 
-    private void UpdateChangeToken()
-    {
+        StreamChangeToken? changedToken = null;
         lock (_syncRoot)
         {
-            var tokens = new List<IAsyncChangeToken>();
-            foreach (var watchTask in _providers.Select(provider => provider.WatchAsync()))
+            if (SnapshotSequenceEqual(_providerSnapshots, providerSnapshots))
+                return;
+
+            _providerSnapshots = providerSnapshots;
+            _snapshot = new CompositeCfgSnapshot(providerSnapshots);
+            changedToken = _changeToken;
+            _changeToken = new StreamChangeToken();
+        }
+
+        changedToken.NotifyChanged();
+    }
+
+    private static bool SnapshotSequenceEqual(IReadOnlyList<ICfgSnapshot> left, IReadOnlyList<ICfgSnapshot> right)
+    {
+        if (left.Count != right.Count)
+            return false;
+
+        for (var i = 0; i < left.Count; i++)
+        {
+            if (!ReferenceEquals(left[i], right[i]))
+                return false;
+        }
+
+        return true;
+    }
+
+    private sealed class CompositeCfgSnapshot(IReadOnlyList<ICfgSnapshot> snapshots) : ICfgSnapshot
+    {
+        public bool TryGetValue(string path, out string? value)
+        {
+            for (var i = snapshots.Count - 1; i >= 0; i--)
             {
-                if (!watchTask.IsCompleted)
-                    watchTask.AsTask().Wait();
-                tokens.Add(watchTask.Result);
+                if (snapshots[i].TryGetValue(path, out value))
+                    return true;
             }
 
-            _currentChangeToken = new CompositeChangeToken(tokens);
-        }
-    }
-
-    private class CompositeChangeToken(IReadOnlyList<IAsyncChangeToken> tokens) : IAsyncChangeToken
-    {
-        public bool HasChanged => tokens.Any(t => t.HasChanged);
-
-        public async ValueTask WaitForChangeAsync(CancellationToken ct = default)
-        {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            var tasks = new List<Task> { Task.Delay(Timeout.Infinite, cts.Token) };
-            tasks.AddRange(tokens.Select(token => token.WaitForChangeAsync(cts.Token).AsTask()));
-
-            var completedTask = await Task.WhenAny(tasks);
-            await cts.CancelAsync();
-            await completedTask;
+            value = null;
+            return false;
         }
     }
 }

@@ -1,6 +1,6 @@
 namespace PicoCfg.Abs;
 
-public interface IAsyncChangeToken
+public interface ICfgChangeSignal
 {
     bool HasChanged { get; }
     ValueTask WaitForChangeAsync(CancellationToken ct = default);

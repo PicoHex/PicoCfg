@@ -4,6 +4,9 @@
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <IsPackable>true</IsPackable>
+        <PackageId>PicoCfg.Abs</PackageId>
+        <Description>Abstractions for PicoCfg async-first configuration management.</Description>
     </PropertyGroup>
 
 </Project>

@@ -1,10 +1,10 @@
 namespace PicoCfg;
 
-internal class CfgBuilder : ICfgBuilder
+public sealed class CfgBuilder
 {
     private readonly List<ICfgSource> _sources = [];
 
-    public ICfgBuilder AddSource(ICfgSource source)
+    public CfgBuilder AddSource(ICfgSource source)
     {
         _sources.Add(source);
         return this;
@@ -14,7 +14,7 @@ internal class CfgBuilder : ICfgBuilder
     {
         var providers = new List<ICfgProvider>();
         foreach (var source in _sources)
-            providers.Add(await source.BuildProviderAsync(ct));
+            providers.Add(await source.OpenAsync(ct));
         return new CfgRoot(providers);
     }
 }

@@ -21,11 +21,11 @@ public class CfgBuilderTests
         var root = await builder.BuildAsync();
 
         await Assert.That(root).IsNotNull();
-        await Assert.That(root.Providers).IsEmpty();
+        await Assert.That(root.Snapshot.GetValue("missing")).IsNull();
     }
 
     [Test]
-    public async Task BuildAsync_WithOneSource_ReturnsRootWithOneProvider()
+    public async Task BuildAsync_WithOneSource_UsesSourceSnapshot()
     {
         var builder = Cfg.CreateBuilder();
         var mockSource = new MockSource();
@@ -33,58 +33,64 @@ public class CfgBuilderTests
 
         var root = await builder.BuildAsync();
 
-        await Assert.That(root.Providers).Count().IsEqualTo(1);
+        await Assert.That(root.Snapshot.GetValue("sourceKey")).IsEqualTo("sourceValue");
     }
 
     [Test]
-    public async Task BuildAsync_WithMultipleSources_ReturnsRootWithMultipleProviders()
+    public async Task BuildAsync_WithMultipleSources_UsesLastSourceValue()
     {
         var builder = Cfg.CreateBuilder();
-        var mockSource1 = new MockSource();
-        var mockSource2 = new MockSource();
+        var mockSource1 = new MockSource("shared", "first");
+        var mockSource2 = new MockSource("shared", "second");
         builder.AddSource(mockSource1);
         builder.AddSource(mockSource2);
 
         var root = await builder.BuildAsync();
 
-        await Assert.That(root.Providers).Count().IsEqualTo(2);
+        await Assert.That(root.Snapshot.GetValue("shared")).IsEqualTo("second");
     }
 
-    private class MockSource : ICfgSource
+    private class MockSource(string key = "sourceKey", string value = "sourceValue") : ICfgSource
     {
-        public ValueTask<ICfgProvider> BuildProviderAsync(CancellationToken ct = default)
+        public ValueTask<ICfgProvider> OpenAsync(CancellationToken ct = default)
         {
-            return ValueTask.FromResult<ICfgProvider>(new MockProvider());
+            return ValueTask.FromResult<ICfgProvider>(new MockProvider(key, value));
         }
     }
 
-    private class MockProvider : ICfgProvider
+    private class MockProvider(string key, string value) : ICfgProvider
     {
-        public ValueTask LoadAsync(CancellationToken ct = default)
+        public ICfgSnapshot Snapshot { get; private set; } = new MockSnapshot(key, value);
+
+        public ValueTask ReloadAsync(CancellationToken ct = default)
         {
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<string?> GetValueAsync(string key, CancellationToken ct = default)
+        public ValueTask<ICfgChangeSignal> WatchAsync(CancellationToken ct = default)
         {
-            return ValueTask.FromResult<string?>(null);
+            return ValueTask.FromResult<ICfgChangeSignal>(new MockChangeToken());
         }
 
-        public async IAsyncEnumerable<ICfgNode> GetChildrenAsync(
-            [EnumeratorCancellation] CancellationToken ct = default
-        )
-        {
-            await Task.CompletedTask;
-            yield break;
-        }
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
 
-        public ValueTask<IAsyncChangeToken> WatchAsync(CancellationToken ct = default)
+    private class MockSnapshot(string key, string value) : ICfgSnapshot
+    {
+        public bool TryGetValue(string path, out string? resolvedValue)
         {
-            return ValueTask.FromResult<IAsyncChangeToken>(new MockChangeToken());
+            if (path == key)
+            {
+                resolvedValue = value;
+                return true;
+            }
+
+            resolvedValue = null;
+            return false;
         }
     }
 
-    private class MockChangeToken : IAsyncChangeToken
+    private class MockChangeToken : ICfgChangeSignal
     {
         public bool HasChanged => false;
 

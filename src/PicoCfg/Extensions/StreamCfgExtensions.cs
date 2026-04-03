@@ -2,12 +2,12 @@ namespace PicoCfg.Extensions;
 
 public static class StreamCfgExtensions
 {
-    extension(ICfgBuilder builder)
+    extension(CfgBuilder builder)
     {
-        public ICfgBuilder Add(Func<Stream> streamFactory) =>
+        public CfgBuilder Add(Func<Stream> streamFactory) =>
             builder.AddSource(new StreamCfgSource(streamFactory));
 
-        public ICfgBuilder Add(string configContent,
+        public CfgBuilder Add(string configContent,
             Encoding? encoding = null
         ) =>
             builder.Add(() =>
@@ -20,7 +20,7 @@ public static class StreamCfgExtensions
                 return stream;
             });
 
-        public ICfgBuilder Add(IDictionary<string, string> configData
-        ) => builder.Add(string.Join("\n", configData.Select(kv => $"{kv.Key}={kv.Value}")));
+        public CfgBuilder Add(IDictionary<string, string> configData
+        ) => builder.AddSource(new DictionaryCfgSource(configData));
     }
 }

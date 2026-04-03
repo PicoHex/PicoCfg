@@ -1,7 +1,8 @@
 namespace PicoCfg.Abs;
 
-public interface ICfgRoot : ICfgNode
+public interface ICfgRoot : IAsyncDisposable
 {
+    ICfgSnapshot Snapshot { get; }
     ValueTask ReloadAsync(CancellationToken ct = default);
-    IReadOnlyList<ICfgProvider> Providers { get; }
+    ValueTask<ICfgChangeSignal> WatchAsync(CancellationToken ct = default);
 }

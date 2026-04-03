@@ -38,7 +38,9 @@ public class StreamChangeTokenTests
         var token = new StreamChangeToken();
         token.NotifyChanged();
 
+#pragma warning disable CS0618
         token.Reset();
+#pragma warning restore CS0618
 
         await Assert.That(token.HasChanged).IsFalse();
     }
@@ -78,10 +80,10 @@ public class StreamChangeTokenTests
 
         await cts.CancelAsync();
 
-        await waitTask;
+        await Assert.That(async () => await waitTask).Throws<OperationCanceledException>();
 
         await Assert.That(waitTask.IsCompleted).IsTrue();
-        await Assert.That(waitTask.IsFaulted).IsFalse();
+        await Assert.That(waitTask.IsCanceled).IsTrue();
     }
 
     [Test]
@@ -110,16 +112,19 @@ public class StreamChangeTokenTests
         await Task.Delay(100);
         await Assert.That(waitTask1.IsCompleted).IsTrue();
 
+#pragma warning disable CS0618
         token.Reset();
+#pragma warning restore CS0618
         await Assert.That(token.HasChanged).IsFalse();
+
+        var waitTask2 = token.WaitForChangeAsync().AsTask();
+        await Task.Delay(100);
+        await Assert.That(waitTask2.IsCompleted).IsFalse();
 
         token.NotifyChanged();
         await Assert.That(token.HasChanged).IsTrue();
 
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        var waitTask2 = token.WaitForChangeAsync(cts.Token).AsTask();
-
-        await Task.Delay(100, cts.Token);
+        await waitTask2;
         await Assert.That(waitTask2.IsCompleted).IsTrue();
     }
 
@@ -136,8 +141,9 @@ public class StreamChangeTokenTests
 
         await cts.CancelAsync();
 
-        await waitTask;
+        await Assert.That(async () => await waitTask).Throws<OperationCanceledException>();
 
         await Assert.That(waitTask.IsCompleted).IsTrue();
+        await Assert.That(waitTask.IsCanceled).IsTrue();
     }
 }

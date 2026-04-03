@@ -3,299 +3,202 @@ namespace PicoCfg.Tests;
 public class CfgRootTests
 {
     [Test]
-    public async Task GetValueAsync_WithNoProviders_ReturnsNull()
+    public async Task Snapshot_WithNoProviders_ReturnsMissingValues()
     {
         var root = new CfgRoot([]);
 
-        var value = await root.GetValueAsync("key");
-
-        await Assert.That(value).IsNull();
+        await Assert.That(root.Snapshot.GetValue("key")).IsNull();
     }
 
     [Test]
-    public async Task GetValueAsync_WithProviderReturningValue_ReturnsValue()
+    public async Task Snapshot_WithSingleProvider_ReturnsProviderValue()
     {
-        var mockProvider = new MockProviderWithValue("key", "value");
-        var root = new CfgRoot([mockProvider]);
+        var provider = new MockProvider([new Dictionary<string, string> { ["key"] = "value" }]);
+        var root = new CfgRoot([provider]);
 
-        var value = await root.GetValueAsync("key");
-
-        await Assert.That(value).IsEqualTo("value");
+        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("value");
     }
 
     [Test]
-    public async Task GetValueAsync_WithMultipleProviders_ReturnsLastNonNullValue()
+    public async Task Snapshot_WithMultipleProviders_UsesLastProviderValue()
     {
-        var mockProvider1 = new MockProviderWithValue("key", null);
-        var mockProvider2 = new MockProviderWithValue("key", "value2");
-        var mockProvider3 = new MockProviderWithValue("key", "value3");
-        var root = new CfgRoot([mockProvider1, mockProvider2, mockProvider3]);
+        var provider1 = new MockProvider([new Dictionary<string, string> { ["key"] = "first" }]);
+        var provider2 = new MockProvider([new Dictionary<string, string> { ["key"] = "second" }]);
+        var root = new CfgRoot([provider1, provider2]);
 
-        var value = await root.GetValueAsync("key");
-
-        await Assert.That(value).IsEqualTo("value3");
+        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("second");
     }
 
     [Test]
-    public async Task GetValueAsync_ProvidersOrderedReverse_ReturnsLastProviderValue()
+    public async Task ReloadAsync_RefreshesSnapshotFromProviders()
     {
-        var mockProvider1 = new MockProviderWithValue("key", "value1");
-        var mockProvider2 = new MockProviderWithValue("key", "value2");
-        var root = new CfgRoot([mockProvider1, mockProvider2]);
-
-        var value = await root.GetValueAsync("key");
-
-        await Assert.That(value).IsEqualTo("value2");
-    }
-
-    [Test]
-    public async Task ReloadAsync_CallsLoadOnEachProvider()
-    {
-        var mockProvider1 = new TrackableMockProvider();
-        var mockProvider2 = new TrackableMockProvider();
-        var root = new CfgRoot([mockProvider1, mockProvider2]);
+        var provider = new MockProvider(
+            [
+                new Dictionary<string, string> { ["key"] = "before" },
+                new Dictionary<string, string> { ["key"] = "after" },
+            ]
+        );
+        var root = new CfgRoot([provider]);
+        var originalSnapshot = root.Snapshot;
 
         await root.ReloadAsync();
 
-        await Assert.That(mockProvider1.LoadCalled).IsTrue();
-        await Assert.That(mockProvider2.LoadCalled).IsTrue();
+        await Assert.That(provider.ReloadCount).IsEqualTo(1);
+        await Assert.That(root.Snapshot).IsNotSameReferenceAs(originalSnapshot);
+        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("after");
+        await Assert.That(originalSnapshot.GetValue("key")).IsEqualTo("before");
     }
 
     [Test]
-    public async Task GetChildrenAsync_WithNoProviders_ReturnsEmpty()
+    public async Task ReloadAsync_WithoutDataChange_KeepsCurrentSnapshot()
     {
-        var root = new CfgRoot([]);
-
-        var children = new List<ICfgNode>();
-        await foreach (var child in root.GetChildrenAsync())
-        {
-            children.Add(child);
-        }
-
-        await Assert.That(children).IsEmpty();
-    }
-
-    [Test]
-    public async Task GetChildrenAsync_WithProviders_ReturnsAllChildren()
-    {
-        var mockProvider1 = new MockProviderWithChildren("child1", "child2");
-        var mockProvider2 = new MockProviderWithChildren("child3", "child4");
-        var root = new CfgRoot([mockProvider1, mockProvider2]);
-
-        var children = new List<ICfgNode>();
-        await foreach (var child in root.GetChildrenAsync())
-        {
-            children.Add(child);
-        }
-
-        await Assert.That(children).Count().IsEqualTo(4);
-        await Assert.That(children.Select(c => (c as MockNode)?.Name)).Contains("child1");
-        await Assert.That(children.Select(c => (c as MockNode)?.Name)).Contains("child2");
-        await Assert.That(children.Select(c => (c as MockNode)?.Name)).Contains("child3");
-        await Assert.That(children.Select(c => (c as MockNode)?.Name)).Contains("child4");
-    }
-
-    [Test]
-    public async Task WatchAsync_ReturnsCompositeChangeToken()
-    {
-        var mockProvider = new MockProviderWithChangeToken();
-        var root = new CfgRoot([mockProvider]);
-
-        var changeToken = await root.WatchAsync();
-
-        await Assert.That(changeToken).IsNotNull();
-    }
-
-    [Test]
-    public async Task WatchAsync_CompositeChangeToken_ReflectsProviderChanges()
-    {
-        var mockProvider = new MockProviderWithChangeToken();
-        var root = new CfgRoot([mockProvider]);
-
-        await root.ReloadAsync();
-        var changeToken = await root.WatchAsync();
-
-        await Assert.That(changeToken.HasChanged).IsFalse();
-
-        mockProvider.ChangeToken.NotifyChanged();
-
-        await Assert.That(changeToken.HasChanged).IsTrue();
-    }
-
-    [Test]
-    public async Task ReloadAsync_UpdatesChangeToken()
-    {
-        var mockProvider = new MockProviderWithChangeToken();
-        var root = new CfgRoot([mockProvider]);
-
-        var changeToken1 = await root.WatchAsync();
-        await Assert.That(changeToken1).IsNotNull();
+        var provider = new MockProvider(
+            [
+                new Dictionary<string, string> { ["key"] = "same" },
+                new Dictionary<string, string> { ["key"] = "same" },
+            ]
+        );
+        var root = new CfgRoot([provider]);
+        var originalSnapshot = root.Snapshot;
 
         await root.ReloadAsync();
 
-        var changeToken2 = await root.WatchAsync();
-        await Assert.That(changeToken2).IsNotNull();
-
-        await Assert.That(changeToken2.HasChanged).IsFalse();
+        await Assert.That(root.Snapshot).IsSameReferenceAs(originalSnapshot);
     }
 
     [Test]
-    public async Task CompositeChangeToken_WaitForChangeAsync_CompletesWhenAnyProviderChanges()
+    public async Task WatchAsync_ChangesWhenRootReloadUpdatesSnapshot()
     {
-        var mockProvider1 = new MockProviderWithChangeToken();
-        var mockProvider2 = new MockProviderWithChangeToken();
-        var root = new CfgRoot([mockProvider1, mockProvider2]);
+        var provider = new MockProvider(
+            [
+                new Dictionary<string, string> { ["key"] = "before" },
+                new Dictionary<string, string> { ["key"] = "after" },
+            ]
+        );
+        var root = new CfgRoot([provider]);
 
+        var changeSignal = await root.WatchAsync();
         await root.ReloadAsync();
-        var changeToken = await root.WatchAsync();
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var waitTask = changeToken.WaitForChangeAsync(cts.Token).AsTask();
 
-        await Task.Delay(100, cts.Token);
-        await Assert.That(waitTask.IsCompleted).IsFalse();
-
-        mockProvider1.ChangeToken.NotifyChanged();
-
-        await waitTask;
-        await Assert.That(waitTask.IsCompleted).IsTrue();
+        await Assert.That(changeSignal.HasChanged).IsTrue();
     }
 
-    private class MockProviderWithValue(string key, string? value) : ICfgProvider
+    [Test]
+    public async Task WatchAsync_DoesNotChangeUntilRootSnapshotChanges()
     {
-        public ValueTask LoadAsync(CancellationToken ct = default)
-        {
-            return ValueTask.CompletedTask;
-        }
+        var provider = new MockProvider([new Dictionary<string, string> { ["key"] = "value" }]);
+        var root = new CfgRoot([provider]);
 
-        public ValueTask<string?> GetValueAsync(string key1, CancellationToken ct = default)
-        {
-            return ValueTask.FromResult(key1 == key ? value : null);
-        }
+        var changeSignal = await root.WatchAsync();
+        provider.NotifyChanged();
 
-        public async IAsyncEnumerable<ICfgNode> GetChildrenAsync(
-            [EnumeratorCancellation] CancellationToken ct = default
-        )
-        {
-            await Task.CompletedTask;
-            yield break;
-        }
-
-        public ValueTask<IAsyncChangeToken> WatchAsync(CancellationToken ct = default)
-        {
-            return ValueTask.FromResult<IAsyncChangeToken>(new MockChangeToken());
-        }
+        await Assert.That(changeSignal.HasChanged).IsFalse();
     }
 
-    private class TrackableMockProvider : ICfgProvider
+    [Test]
+    public async Task WatchAsync_ReturnsFreshTokenAfterReload()
     {
-        public bool LoadCalled { get; private set; }
+        var provider = new MockProvider(
+            [
+                new Dictionary<string, string> { ["key"] = "before" },
+                new Dictionary<string, string> { ["key"] = "after" },
+            ]
+        );
+        var root = new CfgRoot([provider]);
 
-        public ValueTask LoadAsync(CancellationToken ct = default)
-        {
-            LoadCalled = true;
-            return ValueTask.CompletedTask;
-        }
+        var changeSignal1 = await root.WatchAsync();
+        await root.ReloadAsync();
+        var changeSignal2 = await root.WatchAsync();
 
-        public ValueTask<string?> GetValueAsync(string key, CancellationToken ct = default)
-        {
-            return ValueTask.FromResult<string?>(null);
-        }
-
-        public async IAsyncEnumerable<ICfgNode> GetChildrenAsync(
-            [EnumeratorCancellation] CancellationToken ct = default
-        )
-        {
-            await Task.CompletedTask;
-            yield break;
-        }
-
-        public ValueTask<IAsyncChangeToken> WatchAsync(CancellationToken ct = default)
-        {
-            return ValueTask.FromResult<IAsyncChangeToken>(new MockChangeToken());
-        }
+        await Assert.That(changeSignal1.HasChanged).IsTrue();
+        await Assert.That(changeSignal2.HasChanged).IsFalse();
+        await Assert.That(changeSignal2).IsNotSameReferenceAs(changeSignal1);
     }
 
-    private class MockProviderWithChildren(params string[] childNames) : ICfgProvider
+    [Test]
+    public async Task DisposeAsync_DisposesProviders()
     {
-        public ValueTask LoadAsync(CancellationToken ct = default)
+        var provider = new MockProvider([new Dictionary<string, string> { ["key"] = "value" }]);
+        var root = new CfgRoot([provider]);
+
+        await root.DisposeAsync();
+
+        await Assert.That(provider.DisposeCalled).IsTrue();
+    }
+
+    private sealed class MockProvider : ICfgProvider
+    {
+        private readonly IReadOnlyList<IReadOnlyDictionary<string, string>> _snapshots;
+        private int _index;
+        private ControllableMockChangeToken _changeToken = new();
+
+        public MockProvider(IReadOnlyList<IReadOnlyDictionary<string, string>> snapshots)
         {
-            return ValueTask.CompletedTask;
+            _snapshots = snapshots;
+            Snapshot = new MockSnapshot(_snapshots[0]);
         }
 
-        public ValueTask<string?> GetValueAsync(string key, CancellationToken ct = default)
-        {
-            return ValueTask.FromResult<string?>(null);
-        }
+        public int ReloadCount { get; private set; }
+        public bool DisposeCalled { get; private set; }
+        public ICfgSnapshot Snapshot { get; private set; }
 
-        public async IAsyncEnumerable<ICfgNode> GetChildrenAsync(
-            [EnumeratorCancellation] CancellationToken ct = default
-        )
+        public ValueTask ReloadAsync(CancellationToken ct = default)
         {
-            foreach (var name in childNames)
+            ReloadCount++;
+            if (_index < _snapshots.Count - 1)
             {
-                await Task.CompletedTask;
-                yield return new MockNode(name);
+                var nextValues = _snapshots[_index + 1];
+                if (Snapshot is not MockSnapshot currentSnapshot)
+                    throw new InvalidOperationException("Unexpected snapshot implementation.");
+
+                _index++;
+                if (!ConfigDataComparer.Equals(currentSnapshot.Values, nextValues))
+                {
+                    var oldToken = _changeToken;
+                    Snapshot = new MockSnapshot(nextValues);
+                    _changeToken = new ControllableMockChangeToken();
+                    oldToken.NotifyChanged();
+                }
             }
-        }
 
-        public ValueTask<IAsyncChangeToken> WatchAsync(CancellationToken ct = default)
-        {
-            return ValueTask.FromResult<IAsyncChangeToken>(new MockChangeToken());
-        }
-    }
-
-    private class MockNode(string name) : ICfgNode
-    {
-        public string Name { get; } = name;
-
-        public ValueTask<string?> GetValueAsync(string key, CancellationToken ct = default)
-        {
-            return ValueTask.FromResult<string?>(null);
-        }
-
-        public async IAsyncEnumerable<ICfgNode> GetChildrenAsync(
-            [EnumeratorCancellation] CancellationToken ct = default
-        )
-        {
-            await Task.CompletedTask;
-            yield break;
-        }
-
-        public ValueTask<IAsyncChangeToken> WatchAsync(CancellationToken ct = default)
-        {
-            return ValueTask.FromResult<IAsyncChangeToken>(new MockChangeToken());
-        }
-    }
-
-    private class MockProviderWithChangeToken : ICfgProvider
-    {
-        public ControllableMockChangeToken ChangeToken { get; } = new();
-
-        public ValueTask LoadAsync(CancellationToken ct = default)
-        {
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask<string?> GetValueAsync(string key, CancellationToken ct = default)
+        public ValueTask<ICfgChangeSignal> WatchAsync(CancellationToken ct = default)
         {
-            return ValueTask.FromResult<string?>(null);
+            return ValueTask.FromResult<ICfgChangeSignal>(_changeToken);
         }
 
-        public async IAsyncEnumerable<ICfgNode> GetChildrenAsync(
-            [EnumeratorCancellation] CancellationToken ct = default
-        )
+        public ValueTask DisposeAsync()
         {
-            await Task.CompletedTask;
-            yield break;
+            DisposeCalled = true;
+            return ValueTask.CompletedTask;
         }
 
-        public ValueTask<IAsyncChangeToken> WatchAsync(CancellationToken ct = default)
+        public void NotifyChanged()
         {
-            return ValueTask.FromResult<IAsyncChangeToken>(ChangeToken);
+            _changeToken.NotifyChanged();
         }
     }
 
-    private class ControllableMockChangeToken : IAsyncChangeToken
+    private sealed class MockSnapshot(IReadOnlyDictionary<string, string> values) : ICfgSnapshot
+    {
+        public IReadOnlyDictionary<string, string> Values { get; } = values;
+
+        public bool TryGetValue(string path, out string? value)
+        {
+            if (Values.TryGetValue(path, out var existingValue))
+            {
+                value = existingValue;
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+    }
+
+    private sealed class ControllableMockChangeToken : ICfgChangeSignal
     {
         private CancellationTokenSource _cts = new();
 
@@ -307,30 +210,26 @@ public class CfgRootTests
             _cts.Cancel();
         }
 
-        public void Reset()
+        public ValueTask WaitForChangeAsync(CancellationToken ct = default)
         {
-            HasChanged = false;
-            if (!_cts.IsCancellationRequested)
+            return new ValueTask(WaitInternalAsync(ct));
+        }
+
+        private async Task WaitInternalAsync(CancellationToken ct)
+        {
+            if (HasChanged)
                 return;
-            var oldCts = _cts;
-            _cts = new CancellationTokenSource();
-            oldCts.Dispose();
-        }
 
-        public ValueTask WaitForChangeAsync(CancellationToken ct = default)
-        {
-            var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
-            return new ValueTask(linkedCts.Token.WaitForCancellationAsync());
-        }
-    }
+            var signalTask = _cts.Token.WaitForCancellationAsync(throwOnCancellation: false);
+            if (!ct.CanBeCanceled)
+            {
+                await signalTask;
+                return;
+            }
 
-    private class MockChangeToken : IAsyncChangeToken
-    {
-        public bool HasChanged => false;
-
-        public ValueTask WaitForChangeAsync(CancellationToken ct = default)
-        {
-            return ValueTask.CompletedTask;
+            var cancellationTask = ct.WaitForCancellationAsync();
+            var completedTask = await Task.WhenAny(signalTask, cancellationTask);
+            await completedTask;
         }
     }
 }

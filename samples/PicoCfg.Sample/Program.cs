@@ -18,8 +18,8 @@ await Test(
         builder.Add("TestKey=TestValue\nAnotherKey=AnotherValue");
 
         var config = await builder.BuildAsync();
-        var value1 = await config.GetValueAsync("TestKey");
-        var value2 = await config.GetValueAsync("AnotherKey");
+        var value1 = config.Snapshot.GetValue("TestKey");
+        var value2 = config.Snapshot.GetValue("AnotherKey");
 
         return value1 == "TestValue" && value2 == "AnotherValue";
     }
@@ -35,7 +35,7 @@ await Test(
         builder.Add("Key=SecondValue"); // This should override
 
         var config = await builder.BuildAsync();
-        var value = await config.GetValueAsync("Key");
+        var value = config.Snapshot.GetValue("Key");
 
         return value == "SecondValue";
     }
@@ -64,12 +64,12 @@ await Test(
             stream.Position = 0;
             return stream;
         });
-
+        
         var config = await builder.BuildAsync();
 
-        var stringValue = await config.GetValueAsync("StringKey");
-        var dictValue = await config.GetValueAsync("DictKey");
-        var streamValue = await config.GetValueAsync("StreamKey");
+        var stringValue = config.Snapshot.GetValue("StringKey");
+        var dictValue = config.Snapshot.GetValue("DictKey");
+        var streamValue = config.Snapshot.GetValue("StreamKey");
 
         return stringValue == "StringValue"
             && dictValue == "DictValue"
@@ -86,8 +86,8 @@ await Test(
         builder.Add("ExistingKey=SomeValue");
 
         var config = await builder.BuildAsync();
-        var existingValue = await config.GetValueAsync("ExistingKey");
-        var missingValue = await config.GetValueAsync("NonExistentKey");
+        var existingValue = config.Snapshot.GetValue("ExistingKey");
+        var missingValue = config.Snapshot.GetValue("NonExistentKey");
 
         return existingValue == "SomeValue" && missingValue == null;
     }
@@ -102,8 +102,8 @@ await Test(
         builder.Add("Section:Subsection:Key=Value\nSection.Key.With.Dots=AnotherValue");
 
         var config = await builder.BuildAsync();
-        var value1 = await config.GetValueAsync("Section:Subsection:Key");
-        var value2 = await config.GetValueAsync("Section.Key.With.Dots");
+        var value1 = config.Snapshot.GetValue("Section:Subsection:Key");
+        var value2 = config.Snapshot.GetValue("Section.Key.With.Dots");
 
         return value1 == "Value" && value2 == "AnotherValue";
     }
@@ -118,9 +118,9 @@ await Test(
         builder.Add("\n\nKey1=Value1\n  \nKey2  =  Value2  \nKey3=\n\n");
 
         var config = await builder.BuildAsync();
-        var value1 = await config.GetValueAsync("Key1");
-        var value2 = await config.GetValueAsync("Key2");
-        var value3 = await config.GetValueAsync("Key3");
+        var value1 = config.Snapshot.GetValue("Key1");
+        var value2 = config.Snapshot.GetValue("Key2");
+        var value3 = config.Snapshot.GetValue("Key3");
 
         // Key2 should be trimmed, Key3 should be empty string
         return value1 == "Value1" && value2 == "Value2" && value3 == "";
@@ -141,7 +141,8 @@ await Test(
             cts.Cancel(); // Cancel immediately
 
             var config = await builder.BuildAsync(cts.Token);
-            var value = await config.GetValueAsync("Key", cts.Token);
+            cts.Token.ThrowIfCancellationRequested();
+            var value = config.Snapshot.GetValue("Key");
 
             // If we get here without cancellation, it's still OK for AOT validation
             return value == "Value";
@@ -154,9 +155,9 @@ await Test(
     }
 );
 
-// Test 8: Multiple providers and GetChildren (if implemented)
+// Test 8: Snapshot remains available without tree APIs
 await Test(
-    "Provider enumeration",
+    "Snapshot access",
     async () =>
     {
         var builder = Cfg.CreateBuilder();
@@ -165,14 +166,8 @@ await Test(
 
         var config = await builder.BuildAsync();
 
-        // Try to enumerate children (even if empty)
-        await foreach (var _ in config.GetChildrenAsync())
-        {
-            break; // Just check that enumeration works
-        }
-
-        // For now, just ensure no exceptions
-        return true;
+        return config.Snapshot.GetValue("Key1") == "Value1"
+            && config.Snapshot.GetValue("Key2") == "Value2";
     }
 );
 
@@ -187,10 +182,10 @@ await Test(
         var config = await builder.BuildAsync();
 
         // Get change token
-        var changeToken = await config.WatchAsync();
+        var changeSignal = await config.WatchAsync();
 
         // Initial state should be unchanged
-        if (changeToken.HasChanged)
+        if (changeSignal.HasChanged)
             return false;
 
         // Try to reload (this should trigger change in some providers)

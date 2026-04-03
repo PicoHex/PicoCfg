@@ -1,10 +1,22 @@
 namespace PicoCfg;
 
-public class StreamCfgProvider(Func<Stream> streamFactory) : ICfgProvider
+public class DictionaryCfgProvider : ICfgProvider
 {
+    private readonly Func<IEnumerable<KeyValuePair<string, string>>> _dataFactory;
     private readonly Lock _syncRoot = new();
     private CfgSnapshot _snapshot = CfgSnapshot.Empty;
     private StreamChangeToken _changeToken = new();
+
+    public DictionaryCfgProvider(IDictionary<string, string> configData)
+        : this(() => configData)
+    {
+    }
+
+    public DictionaryCfgProvider(Func<IEnumerable<KeyValuePair<string, string>>> dataFactory)
+    {
+        ArgumentNullException.ThrowIfNull(dataFactory);
+        _dataFactory = dataFactory;
+    }
 
     public ICfgSnapshot Snapshot
     {
@@ -15,23 +27,19 @@ public class StreamCfgProvider(Func<Stream> streamFactory) : ICfgProvider
         }
     }
 
-    public async ValueTask ReloadAsync(CancellationToken ct = default)
+    public ValueTask ReloadAsync(CancellationToken ct = default)
     {
-        await using var stream = streamFactory();
-        using var reader = new StreamReader(stream);
+        ct.ThrowIfCancellationRequested();
 
         var newData = new Dictionary<string, string>();
-        while (await reader.ReadLineAsync(ct) is { } line)
+        foreach (var (key, value) in _dataFactory())
         {
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
-
-            var pair = line.Split('=', 2);
-            if (pair.Length is 2)
-                newData[pair[0].Trim()] = pair[1].Trim();
+            ct.ThrowIfCancellationRequested();
+            newData[key] = value;
         }
 
         PublishSnapshot(newData);
+        return ValueTask.CompletedTask;
     }
 
     public ValueTask<ICfgChangeSignal> WatchAsync(CancellationToken ct = default)

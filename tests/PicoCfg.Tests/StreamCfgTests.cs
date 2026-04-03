@@ -9,7 +9,7 @@ public class StreamCfgTests
             new MemoryStream(Encoding.UTF8.GetBytes("key1=value1\nkey2=value2"));
         var source = new StreamCfgSource(streamFactory);
 
-        var provider = await source.BuildProviderAsync();
+        var provider = await source.OpenAsync();
 
         await Assert.That(provider).IsNotNull();
         await Assert.That(provider).IsTypeOf<StreamCfgProvider>();
@@ -22,11 +22,11 @@ public class StreamCfgTests
             new MemoryStream(Encoding.UTF8.GetBytes("key1=value1\nkey2=value2\nkey3=value3"));
         var provider = new StreamCfgProvider(streamFactory);
 
-        await provider.LoadAsync();
+        await provider.ReloadAsync();
 
-        var value1 = await provider.GetValueAsync("key1");
-        var value2 = await provider.GetValueAsync("key2");
-        var value3 = await provider.GetValueAsync("key3");
+        var value1 = provider.Snapshot.GetValue("key1");
+        var value2 = provider.Snapshot.GetValue("key2");
+        var value3 = provider.Snapshot.GetValue("key3");
 
         await Assert.That(value1).IsEqualTo("value1");
         await Assert.That(value2).IsEqualTo("value2");
@@ -40,10 +40,10 @@ public class StreamCfgTests
             new MemoryStream(Encoding.UTF8.GetBytes("\nkey1=value1\n\nkey2=value2\n"));
         var provider = new StreamCfgProvider(streamFactory);
 
-        await provider.LoadAsync();
+        await provider.ReloadAsync();
 
-        var value1 = await provider.GetValueAsync("key1");
-        var value2 = await provider.GetValueAsync("key2");
+        var value1 = provider.Snapshot.GetValue("key1");
+        var value2 = provider.Snapshot.GetValue("key2");
 
         await Assert.That(value1).IsEqualTo("value1");
         await Assert.That(value2).IsEqualTo("value2");
@@ -56,12 +56,12 @@ public class StreamCfgTests
             new MemoryStream(Encoding.UTF8.GetBytes("key1=value1\nmalformed\nkey2=value2\nkey3"));
         var provider = new StreamCfgProvider(streamFactory);
 
-        await provider.LoadAsync();
+        await provider.ReloadAsync();
 
-        var value1 = await provider.GetValueAsync("key1");
-        var value2 = await provider.GetValueAsync("key2");
-        var value3 = await provider.GetValueAsync("key3");
-        var malformedValue = await provider.GetValueAsync("malformed");
+        var value1 = provider.Snapshot.GetValue("key1");
+        var value2 = provider.Snapshot.GetValue("key2");
+        var value3 = provider.Snapshot.GetValue("key3");
+        var malformedValue = provider.Snapshot.GetValue("malformed");
 
         await Assert.That(value1).IsEqualTo("value1");
         await Assert.That(value2).IsEqualTo("value2");
@@ -76,10 +76,10 @@ public class StreamCfgTests
             new MemoryStream(Encoding.UTF8.GetBytes("  key1  =  value1  \n  key2=value2  "));
         var provider = new StreamCfgProvider(streamFactory);
 
-        await provider.LoadAsync();
+        await provider.ReloadAsync();
 
-        var value1 = await provider.GetValueAsync("key1");
-        var value2 = await provider.GetValueAsync("key2");
+        var value1 = provider.Snapshot.GetValue("key1");
+        var value2 = provider.Snapshot.GetValue("key2");
 
         await Assert.That(value1).IsEqualTo("value1");
         await Assert.That(value2).IsEqualTo("value2");
@@ -91,34 +91,33 @@ public class StreamCfgTests
         var streamFactory = () => new MemoryStream(Encoding.UTF8.GetBytes("key1=value1"));
         var provider = new StreamCfgProvider(streamFactory);
 
-        await provider.LoadAsync();
+        await provider.ReloadAsync();
 
-        var value = await provider.GetValueAsync("missing");
+        var value = provider.Snapshot.GetValue("missing");
 
         await Assert.That(value).IsNull();
     }
 
     [Test]
-    public async Task StreamCFGProvider_LoadAsync_OverwritesPreviousData()
+    public async Task StreamCFGProvider_ReloadAsync_ReplacesSnapshotData()
     {
-        var streamFactory1 = () =>
-            new MemoryStream(Encoding.UTF8.GetBytes("key1=oldvalue\nkey2=value2"));
-        var provider = new StreamCfgProvider(streamFactory1);
+        var currentContent = "key1=oldvalue\nkey2=value2";
+        var provider = new StreamCfgProvider(
+            () => new MemoryStream(Encoding.UTF8.GetBytes(currentContent))
+        );
 
-        await provider.LoadAsync();
+        await provider.ReloadAsync();
 
-        var oldValue = await provider.GetValueAsync("key1");
+        var oldValue = provider.Snapshot.GetValue("key1");
         await Assert.That(oldValue).IsEqualTo("oldvalue");
 
-        var streamFactory2 = () =>
-            new MemoryStream(Encoding.UTF8.GetBytes("key1=newvalue\nkey3=value3"));
-        var provider2 = new StreamCfgProvider(streamFactory2);
+        currentContent = "key1=newvalue\nkey3=value3";
 
-        await provider2.LoadAsync();
+        await provider.ReloadAsync();
 
-        var newValue = await provider2.GetValueAsync("key1");
-        var key2Value = await provider2.GetValueAsync("key2");
-        var key3Value = await provider2.GetValueAsync("key3");
+        var newValue = provider.Snapshot.GetValue("key1");
+        var key2Value = provider.Snapshot.GetValue("key2");
+        var key3Value = provider.Snapshot.GetValue("key3");
 
         await Assert.That(newValue).IsEqualTo("newvalue");
         await Assert.That(key2Value).IsNull();
@@ -126,20 +125,14 @@ public class StreamCfgTests
     }
 
     [Test]
-    public async Task StreamCFGProvider_GetChildrenAsync_ReturnsEmpty()
+    public async Task StreamCFGProvider_Snapshot_IsUpdatedAfterReload()
     {
         var streamFactory = () => new MemoryStream(Encoding.UTF8.GetBytes("key1=value1"));
         var provider = new StreamCfgProvider(streamFactory);
 
-        await provider.LoadAsync();
+        await provider.ReloadAsync();
 
-        var children = new List<ICfgNode>();
-        await foreach (var child in provider.GetChildrenAsync())
-        {
-            children.Add(child);
-        }
-
-        await Assert.That(children).IsEmpty();
+        await Assert.That(provider.Snapshot.GetValue("key1")).IsEqualTo("value1");
     }
 
     [Test]
@@ -148,9 +141,75 @@ public class StreamCfgTests
         var streamFactory = () => new MemoryStream(Encoding.UTF8.GetBytes("key1=value1"));
         var provider = new StreamCfgProvider(streamFactory);
 
-        var changeToken = await provider.WatchAsync();
+        var changeSignal = await provider.WatchAsync();
 
-        await Assert.That(changeToken).IsNotNull();
-        await Assert.That(changeToken).IsTypeOf<StreamChangeToken>();
+        await Assert.That(changeSignal).IsNotNull();
+        await Assert.That(changeSignal).IsTypeOf<StreamChangeToken>();
+    }
+
+    [Test]
+    public async Task StreamCFGProvider_LoadAsync_ChangesWatchTokenOnlyWhenDataChanges()
+    {
+        var currentContent = "key1=value1";
+        var provider = new StreamCfgProvider(
+            () => new MemoryStream(Encoding.UTF8.GetBytes(currentContent))
+        );
+
+        var initialSignal = await provider.WatchAsync();
+        await provider.ReloadAsync();
+
+        await Assert.That(initialSignal.HasChanged).IsTrue();
+
+        var unchangedSignal = await provider.WatchAsync();
+        await provider.ReloadAsync();
+        await Assert.That(unchangedSignal.HasChanged).IsFalse();
+
+        currentContent = "key1=value2";
+        await provider.ReloadAsync();
+        await Assert.That(unchangedSignal.HasChanged).IsTrue();
+
+        var latestSignal = await provider.WatchAsync();
+        await Assert.That(latestSignal.HasChanged).IsFalse();
+    }
+
+    [Test]
+    public async Task StreamCFGProvider_WatchAsync_AfterLoad_WaitsForFutureChange()
+    {
+        var currentContent = "key1=value1";
+        var provider = new StreamCfgProvider(
+            () => new MemoryStream(Encoding.UTF8.GetBytes(currentContent))
+        );
+
+        await provider.ReloadAsync();
+        var changeSignal = await provider.WatchAsync();
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var waitTask = changeSignal.WaitForChangeAsync(cts.Token).AsTask();
+
+        await Task.Delay(100, cts.Token);
+        await Assert.That(waitTask.IsCompleted).IsFalse();
+
+        currentContent = "key1=value2";
+        await provider.ReloadAsync();
+
+        await waitTask;
+        await Assert.That(waitTask.IsCompleted).IsTrue();
+    }
+
+    [Test]
+    public async Task DictionarySource_PreservesValuesWithoutTextRoundTrip()
+    {
+        var builder = Cfg.CreateBuilder();
+        builder.Add(
+            new Dictionary<string, string>
+            {
+                ["withEquals"] = "a=b=c",
+                ["withNewLine"] = "line1\nline2",
+            }
+        );
+
+        var config = await builder.BuildAsync();
+
+        await Assert.That(config.Snapshot.GetValue("withEquals")).IsEqualTo("a=b=c");
+        await Assert.That(config.Snapshot.GetValue("withNewLine")).IsEqualTo("line1\nline2");
     }
 }
