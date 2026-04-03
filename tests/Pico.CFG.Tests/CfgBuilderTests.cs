@@ -5,7 +5,7 @@ public class CfgBuilderTests
     [Test]
     public async Task AddSource_AddsSourceToBuilder()
     {
-        var builder = CFG.CreateBuilder();
+        var builder = Cfg.CreateBuilder();
         var mockSource = new MockSource();
 
         var result = builder.AddSource(mockSource);
@@ -16,7 +16,7 @@ public class CfgBuilderTests
     [Test]
     public async Task BuildAsync_WithNoSources_ReturnsRootWithEmptyProviders()
     {
-        var builder = CFG.CreateBuilder();
+        var builder = Cfg.CreateBuilder();
 
         var root = await builder.BuildAsync();
 
@@ -27,7 +27,7 @@ public class CfgBuilderTests
     [Test]
     public async Task BuildAsync_WithOneSource_ReturnsRootWithOneProvider()
     {
-        var builder = CFG.CreateBuilder();
+        var builder = Cfg.CreateBuilder();
         var mockSource = new MockSource();
         builder.AddSource(mockSource);
 
@@ -39,7 +39,7 @@ public class CfgBuilderTests
     [Test]
     public async Task BuildAsync_WithMultipleSources_ReturnsRootWithMultipleProviders()
     {
-        var builder = CFG.CreateBuilder();
+        var builder = Cfg.CreateBuilder();
         var mockSource1 = new MockSource();
         var mockSource2 = new MockSource();
         builder.AddSource(mockSource1);
@@ -50,15 +50,15 @@ public class CfgBuilderTests
         await Assert.That(root.Providers).Count().IsEqualTo(2);
     }
 
-    private class MockSource : ICFGSource
+    private class MockSource : ICfgSource
     {
-        public ValueTask<ICFGProvider> BuildProviderAsync(CancellationToken ct = default)
+        public ValueTask<ICfgProvider> BuildProviderAsync(CancellationToken ct = default)
         {
-            return ValueTask.FromResult<ICFGProvider>(new MockProvider());
+            return ValueTask.FromResult<ICfgProvider>(new MockProvider());
         }
     }
 
-    private class MockProvider : ICFGProvider
+    private class MockProvider : ICfgProvider
     {
         public ValueTask LoadAsync(CancellationToken ct = default)
         {
@@ -70,7 +70,7 @@ public class CfgBuilderTests
             return ValueTask.FromResult<string?>(null);
         }
 
-        public async IAsyncEnumerable<ICFGNode> GetChildrenAsync(
+        public async IAsyncEnumerable<ICfgNode> GetChildrenAsync(
             [EnumeratorCancellation] CancellationToken ct = default
         )
         {

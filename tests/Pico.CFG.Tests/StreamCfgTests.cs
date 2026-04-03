@@ -7,12 +7,12 @@ public class StreamCfgTests
     {
         var streamFactory = () =>
             new MemoryStream(Encoding.UTF8.GetBytes("key1=value1\nkey2=value2"));
-        var source = new StreamCFGSource(streamFactory);
+        var source = new StreamCfgSource(streamFactory);
 
         var provider = await source.BuildProviderAsync();
 
         await Assert.That(provider).IsNotNull();
-        await Assert.That(provider).IsTypeOf<StreamCFGProvider>();
+        await Assert.That(provider).IsTypeOf<StreamCfgProvider>();
     }
 
     [Test]
@@ -20,7 +20,7 @@ public class StreamCfgTests
     {
         var streamFactory = () =>
             new MemoryStream(Encoding.UTF8.GetBytes("key1=value1\nkey2=value2\nkey3=value3"));
-        var provider = new StreamCFGProvider(streamFactory);
+        var provider = new StreamCfgProvider(streamFactory);
 
         await provider.LoadAsync();
 
@@ -38,7 +38,7 @@ public class StreamCfgTests
     {
         var streamFactory = () =>
             new MemoryStream(Encoding.UTF8.GetBytes("\nkey1=value1\n\nkey2=value2\n"));
-        var provider = new StreamCFGProvider(streamFactory);
+        var provider = new StreamCfgProvider(streamFactory);
 
         await provider.LoadAsync();
 
@@ -54,7 +54,7 @@ public class StreamCfgTests
     {
         var streamFactory = () =>
             new MemoryStream(Encoding.UTF8.GetBytes("key1=value1\nmalformed\nkey2=value2\nkey3"));
-        var provider = new StreamCFGProvider(streamFactory);
+        var provider = new StreamCfgProvider(streamFactory);
 
         await provider.LoadAsync();
 
@@ -74,7 +74,7 @@ public class StreamCfgTests
     {
         var streamFactory = () =>
             new MemoryStream(Encoding.UTF8.GetBytes("  key1  =  value1  \n  key2=value2  "));
-        var provider = new StreamCFGProvider(streamFactory);
+        var provider = new StreamCfgProvider(streamFactory);
 
         await provider.LoadAsync();
 
@@ -89,7 +89,7 @@ public class StreamCfgTests
     public async Task StreamCFGProvider_GetValueAsync_ReturnsNullForMissingKey()
     {
         var streamFactory = () => new MemoryStream(Encoding.UTF8.GetBytes("key1=value1"));
-        var provider = new StreamCFGProvider(streamFactory);
+        var provider = new StreamCfgProvider(streamFactory);
 
         await provider.LoadAsync();
 
@@ -103,7 +103,7 @@ public class StreamCfgTests
     {
         var streamFactory1 = () =>
             new MemoryStream(Encoding.UTF8.GetBytes("key1=oldvalue\nkey2=value2"));
-        var provider = new StreamCFGProvider(streamFactory1);
+        var provider = new StreamCfgProvider(streamFactory1);
 
         await provider.LoadAsync();
 
@@ -112,7 +112,7 @@ public class StreamCfgTests
 
         var streamFactory2 = () =>
             new MemoryStream(Encoding.UTF8.GetBytes("key1=newvalue\nkey3=value3"));
-        var provider2 = new StreamCFGProvider(streamFactory2);
+        var provider2 = new StreamCfgProvider(streamFactory2);
 
         await provider2.LoadAsync();
 
@@ -129,11 +129,11 @@ public class StreamCfgTests
     public async Task StreamCFGProvider_GetChildrenAsync_ReturnsEmpty()
     {
         var streamFactory = () => new MemoryStream(Encoding.UTF8.GetBytes("key1=value1"));
-        var provider = new StreamCFGProvider(streamFactory);
+        var provider = new StreamCfgProvider(streamFactory);
 
         await provider.LoadAsync();
 
-        var children = new List<ICFGNode>();
+        var children = new List<ICfgNode>();
         await foreach (var child in provider.GetChildrenAsync())
         {
             children.Add(child);
@@ -146,7 +146,7 @@ public class StreamCfgTests
     public async Task StreamCFGProvider_WatchAsync_ReturnsChangeToken()
     {
         var streamFactory = () => new MemoryStream(Encoding.UTF8.GetBytes("key1=value1"));
-        var provider = new StreamCFGProvider(streamFactory);
+        var provider = new StreamCfgProvider(streamFactory);
 
         var changeToken = await provider.WatchAsync();
 
