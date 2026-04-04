@@ -26,21 +26,25 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Keep PicoHex logical targets stable.
+          # Hosted runner mapping may use an available x64 OS runner to validate
+          # publish for an ARM64 RID when a native ARM64 hosted runner is not
+          # available to this repository.
           - logical-target: win-x64
             rid: win-x64
             runs-on: windows-latest
           - logical-target: win-arm64
             rid: win-arm64
-            runs-on: windows-2025-arm64
+            runs-on: windows-latest
           - logical-target: linux-x64
             rid: linux-x64
             runs-on: ubuntu-latest
           - logical-target: linux-arm64
             rid: linux-arm64
-            runs-on: ubuntu-24.04-arm64
+            runs-on: ubuntu-latest
           - logical-target: osx-arm64
             rid: osx-arm64
-            runs-on: macos-15
+            runs-on: macos-latest
 
     steps:
       - name: Checkout repository
