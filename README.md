@@ -2,87 +2,179 @@
 
 [![CI](https://github.com/PicoHex/PicoCfg/actions/workflows/ci.yml/badge.svg)](https://github.com/PicoHex/PicoCfg/actions/workflows/ci.yml)
 
-A lightweight, async-first configuration management framework from PicoHex, designed for AOT compatibility and edge computing scenarios.
+PicoCfg is a small, AOT-friendly configuration library for .NET.
+It composes multiple sources into a stable read-only snapshot, supports explicit reload, and exposes a one-shot change signal for published updates.
 
-## Features
+## Why PicoCfg
 
-- **Async-first API**: All operations support async/await with cancellation tokens
-- **AOT-compatible**: No reflection, dynamic code generation, or runtime type discovery
-- **Multiple configuration sources**: Support for strings, dictionaries, streams, and custom sources
-- **Change notification**: Built-in support for reload-driven configuration change monitoring
-- **Priority-based override**: Later sources override earlier ones
-- **Minimal dependencies**: Self-contained implementation with no external dependencies
-- **SourceLink support**: Source-level debugging from NuGet packages
+- small public surface
+- exact string key lookup
+- explicit reload and change-signal semantics
+- custom source support via `PicoCfg.Abs`
+- Native AOT-friendly design
 
 ## Installation
 
+Most applications only need `PicoCfg`:
+
+```bash
+dotnet add package PicoCfg
+```
+
+Use `PicoCfg.Abs` when you only need the contracts for custom integrations or abstractions:
+
 ```bash
 dotnet add package PicoCfg.Abs
-dotnet add package PicoCfg
 ```
 
 ## Quick Start
 
 ```csharp
+using System.Text;
 using PicoCfg;
 using PicoCfg.Extensions;
 
-var builder = Cfg.CreateBuilder();
+await using var root = await Cfg
+    .CreateBuilder()
+    .Add("ConnectionString=Host=localhost")
+    .Add(new Dictionary<string, string>
+    {
+        ["Logging:Level"] = "Debug",
+        ["FeatureFlag"] = "true",
+    })
+    .Add(() => new MemoryStream(Encoding.UTF8.GetBytes("AppName=PicoCfg")))
+    .BuildAsync();
 
-builder
-    .Add("Database.ConnectionString=localhost:3306")
-    .Add(new Dictionary<string, string> { ["Logging:Level"] = "Debug" })
-    .Add(() => new MemoryStream(Encoding.UTF8.GetBytes("AppName=MyTestApp")));
-
-var configRoot = await builder.BuildAsync();
-
-var connectionString = configRoot.Snapshot.GetValue("Database.ConnectionString");
-Console.WriteLine($"Connection: {connectionString}");
+Console.WriteLine(root.Snapshot.GetValue("ConnectionString"));
+Console.WriteLine(root.Snapshot.GetValue("Logging:Level"));
 ```
 
-Configuration values are resolved from the composed snapshot, and later sources override earlier ones.
-`WatchAsync` returns a one-shot change signal for the current snapshot version. That signal changes after
-`ReloadAsync` publishes a different composed snapshot.
+Later sources override earlier ones.
 
-## Architecture
+## Core Semantics
 
-PicoCfg follows a clean abstraction/implementation separation:
+### Exact key lookup
 
-- **PicoCfg.Abs**: Interface contracts for configuration management
-- **PicoCfg**: Concrete implementations and extension methods
-- **Extensions**: Convenient helper methods for common scenarios
+`GetValue()` performs exact string lookup over the current snapshot.
+Characters such as `:` and `.` are part of the key name; PicoCfg does not interpret them as hierarchical traversal.
 
-## AOT Compatibility
+### Stable snapshots
 
-PicoCfg is fully compatible with Native AOT compilation:
+`ICfgRoot.Snapshot` exposes the currently published read-only snapshot.
+If reload does not publish a new snapshot, the same snapshot instance is retained.
 
-- No reflection API usage
-- No dynamic code generation
-- Pure interface-driven design
-- Compile-time type resolution
+### Lifetime
 
-To publish with AOT:
+The built root owns the opened providers and implements `IAsyncDisposable`.
+Prefer `await using` for normal usage.
+
+## Source Types
+
+### String source
+
+```csharp
+builder.Add("Key1=Value1\nKey2=Value2");
+```
+
+Parsed as line-based `key=value` content.
+
+### Dictionary source
+
+```csharp
+builder.Add(new Dictionary<string, string>
+{
+    ["RawValue"] = "a=b=c",
+    ["MultiLine"] = "line1\nline2",
+});
+```
+
+Dictionary values are used as-is.
+They are not reparsed, so embedded `=` characters and newline content are preserved.
+
+### Stream source
+
+```csharp
+builder.Add(() => File.OpenRead("app.cfg"));
+```
+
+Reparsed on each reload using the same line-based `key=value` format as string content.
+
+### Text and stream parsing rules
+
+For text and stream sources:
+
+- blank lines are ignored
+- malformed lines without `=` are ignored
+- only the first `=` splits key and value
+- keys and values are trimmed
+
+For example, `Key = a=b=c` produces key `Key` and value `a=b=c`.
+
+## Reload and Change Signals
+
+- `ReloadAsync()` returns `true` only when a new snapshot instance is published
+- `ReloadAsync()` returns `false` when the current snapshot instance is retained
+- `GetChangeSignal()` returns the one-shot signal for the current published version
+- after a published change, fetch a new signal for later waits
+
+## Custom Sources
+
+Custom integrations are built on `PicoCfg.Abs`.
+
+- `ICfgSource.OpenAsync()` opens a source into a long-lived provider
+- the returned provider must already expose a readable `Snapshot`
+- `ICfgProvider.ReloadAsync()` reports whether that provider published a new snapshot instance
+- `ICfgProvider.GetChangeSignal()` returns the one-shot signal for the current published version
+
+Minimal sketch:
+
+```csharp
+using PicoCfg.Abs;
+
+public sealed class CustomSource : ICfgSource
+{
+    public async ValueTask<ICfgProvider> OpenAsync(CancellationToken ct = default)
+    {
+        var provider = new CustomProvider();
+        await provider.ReloadAsync(ct);
+        return provider;
+    }
+}
+```
+
+## Native AOT
+
+PicoCfg is designed to stay friendly to Native AOT scenarios.
+The repository includes `samples/PicoCfg.Sample` and CI validation using `dotnet publish -p:PublishAOT=true`.
+
+Example:
 
 ```bash
-dotnet publish -c Release -r win-x64 -p:PublishAOT=true --self-contained
+dotnet publish samples/PicoCfg.Sample \
+  -c Release \
+  -r win-x64 \
+  -p:PublishAOT=true \
+  --self-contained
 ```
 
-## Building from Source
+Adjust the runtime identifier for your target platform.
+
+## Build and Test
+
+These commands match the repository CI workflow:
 
 ```bash
-git clone https://github.com/PicoHex/PicoCfg.git
-cd PicoCfg
-dotnet build --configuration Release
+dotnet restore tests/PicoCfg.Tests/PicoCfg.Tests.csproj -p:UseProjectReferences=true
+dotnet build tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-restore -p:UseProjectReferences=true
+dotnet test --project tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-build --verbosity normal -p:UseProjectReferences=true
 ```
 
-## Contributing
+Run the sample locally:
 
-This project follows the PicoHex organization's development standards:
-- AOT-compatible code patterns
-- Deterministic builds
-- SourceLink integration
-- Comprehensive CI/CD pipeline
+```bash
+dotnet run --project samples/PicoCfg.Sample/PicoCfg.Sample.csproj
+```
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License.

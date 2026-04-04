@@ -1,6 +1,6 @@
 namespace PicoCfg;
 
-public class StreamCfgSource : ICfgSource
+internal sealed class StreamCfgSource : ICfgSource
 {
     private readonly Func<Stream> _streamFactory;
 

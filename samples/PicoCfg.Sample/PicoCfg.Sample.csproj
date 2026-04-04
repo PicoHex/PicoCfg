@@ -6,12 +6,10 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
-        <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     </PropertyGroup>
     
     <PropertyGroup Condition="'$(Configuration)' == 'Release'">
         <PublishAot>true</PublishAot>
-        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
         <SelfContained>true</SelfContained>
         <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
         <IlcOptimizationPreference>Size</IlcOptimizationPreference>

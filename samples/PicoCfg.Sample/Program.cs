@@ -17,9 +17,9 @@ await Test(
         var builder = Cfg.CreateBuilder();
         builder.Add("TestKey=TestValue\nAnotherKey=AnotherValue");
 
-        var config = await builder.BuildAsync();
-        var value1 = config.Snapshot.GetValue("TestKey");
-        var value2 = config.Snapshot.GetValue("AnotherKey");
+        await using var root = await builder.BuildAsync();
+        var value1 = root.Snapshot.GetValue("TestKey");
+        var value2 = root.Snapshot.GetValue("AnotherKey");
 
         return value1 == "TestValue" && value2 == "AnotherValue";
     }
@@ -34,8 +34,8 @@ await Test(
         builder.Add("Key=FirstValue");
         builder.Add("Key=SecondValue"); // This should override
 
-        var config = await builder.BuildAsync();
-        var value = config.Snapshot.GetValue("Key");
+        await using var root = await builder.BuildAsync();
+        var value = root.Snapshot.GetValue("Key");
 
         return value == "SecondValue";
     }
@@ -65,11 +65,11 @@ await Test(
             return stream;
         });
         
-        var config = await builder.BuildAsync();
+        await using var root = await builder.BuildAsync();
 
-        var stringValue = config.Snapshot.GetValue("StringKey");
-        var dictValue = config.Snapshot.GetValue("DictKey");
-        var streamValue = config.Snapshot.GetValue("StreamKey");
+        var stringValue = root.Snapshot.GetValue("StringKey");
+        var dictValue = root.Snapshot.GetValue("DictKey");
+        var streamValue = root.Snapshot.GetValue("StreamKey");
 
         return stringValue == "StringValue"
             && dictValue == "DictValue"
@@ -85,9 +85,9 @@ await Test(
         var builder = Cfg.CreateBuilder();
         builder.Add("ExistingKey=SomeValue");
 
-        var config = await builder.BuildAsync();
-        var existingValue = config.Snapshot.GetValue("ExistingKey");
-        var missingValue = config.Snapshot.GetValue("NonExistentKey");
+        await using var root = await builder.BuildAsync();
+        var existingValue = root.Snapshot.GetValue("ExistingKey");
+        var missingValue = root.Snapshot.GetValue("NonExistentKey");
 
         return existingValue == "SomeValue" && missingValue == null;
     }
@@ -101,9 +101,9 @@ await Test(
         var builder = Cfg.CreateBuilder();
         builder.Add("Section:Subsection:Key=Value\nSection.Key.With.Dots=AnotherValue");
 
-        var config = await builder.BuildAsync();
-        var value1 = config.Snapshot.GetValue("Section:Subsection:Key");
-        var value2 = config.Snapshot.GetValue("Section.Key.With.Dots");
+        await using var root = await builder.BuildAsync();
+        var value1 = root.Snapshot.GetValue("Section:Subsection:Key");
+        var value2 = root.Snapshot.GetValue("Section.Key.With.Dots");
 
         return value1 == "Value" && value2 == "AnotherValue";
     }
@@ -117,10 +117,10 @@ await Test(
         var builder = Cfg.CreateBuilder();
         builder.Add("\n\nKey1=Value1\n  \nKey2  =  Value2  \nKey3=\n\n");
 
-        var config = await builder.BuildAsync();
-        var value1 = config.Snapshot.GetValue("Key1");
-        var value2 = config.Snapshot.GetValue("Key2");
-        var value3 = config.Snapshot.GetValue("Key3");
+        await using var root = await builder.BuildAsync();
+        var value1 = root.Snapshot.GetValue("Key1");
+        var value2 = root.Snapshot.GetValue("Key2");
+        var value3 = root.Snapshot.GetValue("Key3");
 
         // Key2 should be trimmed, Key3 should be empty string
         return value1 == "Value1" && value2 == "Value2" && value3 == "";
@@ -140,9 +140,9 @@ await Test(
             var cts = new CancellationTokenSource();
             cts.Cancel(); // Cancel immediately
 
-            var config = await builder.BuildAsync(cts.Token);
+            await using var root = await builder.BuildAsync(cts.Token);
             cts.Token.ThrowIfCancellationRequested();
-            var value = config.Snapshot.GetValue("Key");
+            var value = root.Snapshot.GetValue("Key");
 
             // If we get here without cancellation, it's still OK for AOT validation
             return value == "Value";
@@ -164,10 +164,10 @@ await Test(
         builder.Add("Key1=Value1");
         builder.Add("Key2=Value2");
 
-        var config = await builder.BuildAsync();
+        await using var root = await builder.BuildAsync();
 
-        return config.Snapshot.GetValue("Key1") == "Value1"
-            && config.Snapshot.GetValue("Key2") == "Value2";
+        return root.Snapshot.GetValue("Key1") == "Value1"
+            && root.Snapshot.GetValue("Key2") == "Value2";
     }
 );
 
@@ -179,21 +179,15 @@ await Test(
         var builder = Cfg.CreateBuilder();
         builder.Add("InitialKey=InitialValue");
 
-        var config = await builder.BuildAsync();
+        await using var root = await builder.BuildAsync();
 
-        // Get change token
-        var changeSignal = await config.WatchAsync();
+        var changeSignal = root.GetChangeSignal();
 
-        // Initial state should be unchanged
         if (changeSignal.HasChanged)
             return false;
 
-        // Try to reload (this should trigger change in some providers)
-        await config.ReloadAsync();
-
-        // After reload, token might be changed (depends on implementation)
-        // For this test, just ensure no exceptions
-        return true;
+        var changed = await root.ReloadAsync();
+        return changed == changeSignal.HasChanged;
     }
 );
 

@@ -1,11 +1,11 @@
 namespace PicoCfg;
 
-public class StreamCfgProvider : ICfgProvider
+internal sealed class StreamCfgProvider : ICfgProvider
 {
     private readonly Lock _syncRoot = new();
     private readonly Func<Stream> _streamFactory;
     private CfgSnapshot _snapshot = CfgSnapshot.Empty;
-    private StreamChangeToken _changeToken = new();
+    private CfgChangeSignal _changeSignal = new();
 
     public StreamCfgProvider(Func<Stream> streamFactory)
     {
@@ -22,7 +22,7 @@ public class StreamCfgProvider : ICfgProvider
         }
     }
 
-    public async ValueTask ReloadAsync(CancellationToken ct = default)
+    public async ValueTask<bool> ReloadAsync(CancellationToken ct = default)
     {
         var stream = _streamFactory()
             ?? throw new InvalidOperationException("The stream factory returned null.");
@@ -41,30 +41,31 @@ public class StreamCfgProvider : ICfgProvider
                 newData[pair[0].Trim()] = pair[1].Trim();
         }
 
-        PublishSnapshot(newData);
+        return PublishSnapshot(newData);
     }
 
-    public ValueTask<ICfgChangeSignal> WatchAsync(CancellationToken ct = default)
+    public ICfgChangeSignal GetChangeSignal()
     {
         lock (_syncRoot)
-            return ValueTask.FromResult<ICfgChangeSignal>(_changeToken);
+            return _changeSignal;
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    private void PublishSnapshot(Dictionary<string, string> newData)
+    private bool PublishSnapshot(Dictionary<string, string> newData)
     {
-        StreamChangeToken? changedToken = null;
+        CfgChangeSignal? changedSignal = null;
         lock (_syncRoot)
         {
             if (ConfigDataComparer.Equals(_snapshot.Values, newData))
-                return;
+                return false;
 
             _snapshot = new CfgSnapshot(newData);
-            changedToken = _changeToken;
-            _changeToken = new StreamChangeToken();
+            changedSignal = _changeSignal;
+            _changeSignal = new CfgChangeSignal();
         }
 
-        changedToken.NotifyChanged();
+        changedSignal.NotifyChanged();
+        return true;
     }
 }

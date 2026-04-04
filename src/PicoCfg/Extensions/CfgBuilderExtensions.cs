@@ -1,12 +1,23 @@
 namespace PicoCfg.Extensions;
 
+/// <summary>
+/// Convenience methods for adding common configuration source types to a <see cref="CfgBuilder"/>.
+/// </summary>
 public static class CfgBuilderExtensions
 {
     extension(CfgBuilder builder)
     {
+        /// <summary>
+        /// Adds a stream-based source.
+        /// The stream content is parsed as line-based <c>key=value</c> text on each reload.
+        /// </summary>
         public CfgBuilder Add(Func<Stream> streamFactory) =>
             builder.AddSource(new StreamCfgSource(streamFactory));
 
+        /// <summary>
+        /// Adds inline text content as a stream-based source.
+        /// The content is parsed as line-based <c>key=value</c> text.
+        /// </summary>
         public CfgBuilder Add(string configContent,
             Encoding? encoding = null
         ) =>
@@ -20,6 +31,10 @@ public static class CfgBuilderExtensions
                 return stream;
             }));
 
+        /// <summary>
+        /// Adds an in-memory dictionary source.
+        /// Dictionary values are used as-is and are not reparsed as <c>key=value</c> text.
+        /// </summary>
         public CfgBuilder Add(IDictionary<string, string> configData
         ) => builder.AddSource(new DictionaryCfgSource(configData));
     }

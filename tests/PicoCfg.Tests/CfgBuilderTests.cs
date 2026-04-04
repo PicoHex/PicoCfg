@@ -86,14 +86,14 @@ public class CfgBuilderTests
     {
         public ICfgSnapshot Snapshot { get; private set; } = new MockSnapshot(key, value);
 
-        public ValueTask ReloadAsync(CancellationToken ct = default)
+        public ValueTask<bool> ReloadAsync(CancellationToken ct = default)
         {
-            return ValueTask.CompletedTask;
+            return ValueTask.FromResult(false);
         }
 
-        public ValueTask<ICfgChangeSignal> WatchAsync(CancellationToken ct = default)
+        public ICfgChangeSignal GetChangeSignal()
         {
-            return ValueTask.FromResult<ICfgChangeSignal>(new MockChangeToken());
+            return new MockChangeToken();
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -145,14 +145,14 @@ public class CfgBuilderTests
         public bool DisposeCalled { get; private set; }
         public ICfgSnapshot Snapshot { get; } = new MockSnapshot(key, value);
 
-        public ValueTask ReloadAsync(CancellationToken ct = default)
+        public ValueTask<bool> ReloadAsync(CancellationToken ct = default)
         {
-            return ValueTask.CompletedTask;
+            return ValueTask.FromResult(false);
         }
 
-        public ValueTask<ICfgChangeSignal> WatchAsync(CancellationToken ct = default)
+        public ICfgChangeSignal GetChangeSignal()
         {
-            return ValueTask.FromResult<ICfgChangeSignal>(new MockChangeToken());
+            return new MockChangeToken();
         }
 
         public ValueTask DisposeAsync()

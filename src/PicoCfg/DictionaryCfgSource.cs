@@ -1,6 +1,6 @@
 namespace PicoCfg;
 
-public class DictionaryCfgSource : ICfgSource
+internal sealed class DictionaryCfgSource : ICfgSource
 {
     private readonly Func<IEnumerable<KeyValuePair<string, string>>> _dataFactory;
 

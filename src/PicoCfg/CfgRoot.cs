@@ -8,7 +8,7 @@ internal sealed class CfgRoot : ICfgRoot
     private readonly List<ICfgProvider> _providers;
     private ICfgSnapshot[] _providerSnapshots;
     private ICfgSnapshot _snapshot;
-    private StreamChangeToken _changeToken = new();
+    private CfgChangeSignal _changeSignal = new();
 
     public CfgRoot(IEnumerable<ICfgProvider> providers)
     {
@@ -26,18 +26,18 @@ internal sealed class CfgRoot : ICfgRoot
         }
     }
 
-    public async ValueTask ReloadAsync(CancellationToken ct = default)
+    public async ValueTask<bool> ReloadAsync(CancellationToken ct = default)
     {
         foreach (var provider in _providers)
             await provider.ReloadAsync(ct);
 
-        PublishSnapshot();
+        return PublishSnapshot();
     }
 
-    public ValueTask<ICfgChangeSignal> WatchAsync(CancellationToken ct = default)
+    public ICfgChangeSignal GetChangeSignal()
     {
         lock (_syncRoot)
-            return ValueTask.FromResult<ICfgChangeSignal>(_changeToken);
+            return _changeSignal;
     }
 
     public async ValueTask DisposeAsync()
@@ -66,23 +66,24 @@ internal sealed class CfgRoot : ICfgRoot
         throw new AggregateException(exceptions);
     }
 
-    private void PublishSnapshot()
+    private bool PublishSnapshot()
     {
         var providerSnapshots = _providers.Select(static provider => provider.Snapshot).ToArray();
 
-        StreamChangeToken? changedToken = null;
+        CfgChangeSignal? changedSignal = null;
         lock (_syncRoot)
         {
             if (SnapshotSequenceEqual(_providerSnapshots, providerSnapshots))
-                return;
+                return false;
 
             _providerSnapshots = providerSnapshots;
             _snapshot = new CompositeCfgSnapshot(providerSnapshots);
-            changedToken = _changeToken;
-            _changeToken = new StreamChangeToken();
+            changedSignal = _changeSignal;
+            _changeSignal = new CfgChangeSignal();
         }
 
-        changedToken.NotifyChanged();
+        changedSignal.NotifyChanged();
+        return true;
     }
 
     private static bool SnapshotSequenceEqual(IReadOnlyList<ICfgSnapshot> left, IReadOnlyList<ICfgSnapshot> right)

@@ -1,16 +1,11 @@
 namespace PicoCfg;
 
-public class DictionaryCfgProvider : ICfgProvider
+internal sealed class DictionaryCfgProvider : ICfgProvider
 {
     private readonly Func<IEnumerable<KeyValuePair<string, string>>> _dataFactory;
     private readonly Lock _syncRoot = new();
     private CfgSnapshot _snapshot = CfgSnapshot.Empty;
-    private StreamChangeToken _changeToken = new();
-
-    public DictionaryCfgProvider(IDictionary<string, string> configData)
-        : this(() => configData)
-    {
-    }
+    private CfgChangeSignal _changeSignal = new();
 
     public DictionaryCfgProvider(Func<IEnumerable<KeyValuePair<string, string>>> dataFactory)
     {
@@ -27,7 +22,7 @@ public class DictionaryCfgProvider : ICfgProvider
         }
     }
 
-    public ValueTask ReloadAsync(CancellationToken ct = default)
+    public ValueTask<bool> ReloadAsync(CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
 
@@ -38,31 +33,31 @@ public class DictionaryCfgProvider : ICfgProvider
             newData[key] = value;
         }
 
-        PublishSnapshot(newData);
-        return ValueTask.CompletedTask;
+        return ValueTask.FromResult(PublishSnapshot(newData));
     }
 
-    public ValueTask<ICfgChangeSignal> WatchAsync(CancellationToken ct = default)
+    public ICfgChangeSignal GetChangeSignal()
     {
         lock (_syncRoot)
-            return ValueTask.FromResult<ICfgChangeSignal>(_changeToken);
+            return _changeSignal;
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-    private void PublishSnapshot(Dictionary<string, string> newData)
+    private bool PublishSnapshot(Dictionary<string, string> newData)
     {
-        StreamChangeToken? changedToken = null;
+        CfgChangeSignal? changedSignal = null;
         lock (_syncRoot)
         {
             if (ConfigDataComparer.Equals(_snapshot.Values, newData))
-                return;
+                return false;
 
             _snapshot = new CfgSnapshot(newData);
-            changedToken = _changeToken;
-            _changeToken = new StreamChangeToken();
+            changedSignal = _changeSignal;
+            _changeSignal = new CfgChangeSignal();
         }
 
-        changedToken.NotifyChanged();
+        changedSignal.NotifyChanged();
+        return true;
     }
 }

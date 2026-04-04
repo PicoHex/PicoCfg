@@ -1,6 +1,6 @@
 namespace PicoCfg;
 
-public class StreamChangeToken : ICfgChangeSignal
+internal sealed class CfgChangeSignal : ICfgChangeSignal
 {
     private readonly Lock _syncLock = new();
     private CancellationTokenSource _cts = new();
@@ -15,7 +15,7 @@ public class StreamChangeToken : ICfgChangeSignal
             if (HasChanged)
                 return;
 
-            signalTask = _cts.Token.WaitForCancellationAsync(throwOnCancellation: false);
+            signalTask = _cts.Token.AwaitCancellationAsync(throwOnCancellation: false);
         }
 
         if (!ct.CanBeCanceled)
@@ -24,12 +24,12 @@ public class StreamChangeToken : ICfgChangeSignal
             return;
         }
 
-        var cancellationTask = ct.WaitForCancellationAsync();
+        var cancellationTask = ct.AwaitCancellationAsync();
         var completedTask = await Task.WhenAny(signalTask, cancellationTask);
         await completedTask;
     }
 
-    public void NotifyChanged()
+    internal void NotifyChanged()
     {
         CancellationTokenSource? ctsToCancel = null;
         lock (_syncLock)
@@ -43,28 +43,11 @@ public class StreamChangeToken : ICfgChangeSignal
 
         ctsToCancel.Cancel();
     }
-
-    [Obsolete("Use a new token instance for subsequent waits. Reset is kept for backward compatibility.")]
-    public void Reset()
-    {
-        CancellationTokenSource? oldCts = null;
-        lock (_syncLock)
-        {
-            if (!HasChanged && !_cts.IsCancellationRequested)
-                return;
-
-            oldCts = _cts;
-            _cts = new CancellationTokenSource();
-            HasChanged = false;
-        }
-
-        oldCts.Dispose();
-    }
 }
 
-internal static class CancellationTokenExtensions
+internal static class CancellationAwaitExtensions
 {
-    public static Task WaitForCancellationAsync(this CancellationToken ct, bool throwOnCancellation = true)
+    public static Task AwaitCancellationAsync(this CancellationToken ct, bool throwOnCancellation = true)
     {
         if (!ct.CanBeCanceled)
             return Task.Delay(Timeout.InfiniteTimeSpan);

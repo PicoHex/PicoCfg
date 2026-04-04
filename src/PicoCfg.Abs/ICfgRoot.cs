@@ -2,12 +2,18 @@ namespace PicoCfg.Abs;
 
 /// <summary>
 /// Represents the composed configuration root across all registered providers.
-/// Snapshot changes are published when ReloadAsync refreshes provider snapshots and the
-/// composed view changes. WatchAsync returns the current one-shot change signal.
+/// <see cref="Snapshot"/> must always return a stable, concurrently readable composed snapshot.
+/// Snapshot reference identity is the root's published version identity:
+/// when <see cref="ReloadAsync"/> returns <see langword="true"/>, <see cref="Snapshot"/> must be a
+/// different instance than before the reload; when it returns <see langword="false"/>, the same
+/// snapshot instance must be retained.
+/// A root publishes a new snapshot when its composed provider snapshot sequence changes.
+/// <see cref="GetChangeSignal"/> returns the current one-shot signal for the current published
+/// root snapshot version.
 /// </summary>
 public interface ICfgRoot : IAsyncDisposable
 {
     ICfgSnapshot Snapshot { get; }
-    ValueTask ReloadAsync(CancellationToken ct = default);
-    ValueTask<ICfgChangeSignal> WatchAsync(CancellationToken ct = default);
+    ValueTask<bool> ReloadAsync(CancellationToken ct = default);
+    ICfgChangeSignal GetChangeSignal();
 }
