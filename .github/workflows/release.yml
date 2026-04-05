@@ -65,15 +65,6 @@ jobs:
             -p:PicoCfgPackageVersion="$VERSION" \
             -p:RestoreSources="$NUGET_SOURCE"
 
-          dotnet pack src/PicoCfg.Gen/PicoCfg.Gen.csproj \
-            --configuration Release \
-            --output ./artifacts/nupkg \
-            -p:Version="$VERSION" \
-            -p:UseProjectReferences=false \
-            -p:PicoCfgPackageVersion="$VERSION" \
-            -p:RestoreSources="$NUGET_SOURCE" \
-            -p:RestoreAdditionalProjectSources="$NUPKG_DIR"
-
           dotnet pack src/PicoCfg/PicoCfg.csproj \
             --configuration Release \
             --output ./artifacts/nupkg \
