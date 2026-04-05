@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DOTNET_VERSION: 10.x
+  DOTNET_VERSION: 10.0.x
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
 jobs:
@@ -20,8 +21,6 @@ jobs:
     name: Pack NuGet packages
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    permissions:
-      contents: read
 
     steps:
       - name: Checkout repository
@@ -37,32 +36,54 @@ jobs:
       - name: Extract version from tag
         id: version
         shell: bash
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+        run: |
+          ref_name="${GITHUB_REF_NAME}"
+          version="${ref_name#v}"
 
-      - name: Pack packages
+          if [ -z "$version" ] || [ "$version" = "$ref_name" ]; then
+            echo "Release workflow expects a v* tag." >&2
+            exit 1
+          fi
+
+          echo "VERSION=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Pack packages in dependency order
         shell: bash
         run: |
           rm -rf ./artifacts/nupkg
           mkdir -p ./artifacts/nupkg
 
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          NUPKG_DIR="$GITHUB_WORKSPACE/artifacts/nupkg"
+          NUGET_SOURCE="https://api.nuget.org/v3/index.json"
+
           dotnet pack src/PicoCfg.Abs/PicoCfg.Abs.csproj \
             --configuration Release \
             --output ./artifacts/nupkg \
-            -p:Version=${{ steps.version.outputs.VERSION }} \
+            -p:Version="$VERSION" \
             -p:UseProjectReferences=false \
-            -p:ContinuousIntegrationBuild=true \
-            -p:Deterministic=true
+            -p:PicoCfgPackageVersion="$VERSION" \
+            -p:RestoreSources="$NUGET_SOURCE"
+
+          dotnet pack src/PicoCfg.Gen/PicoCfg.Gen.csproj \
+            --configuration Release \
+            --output ./artifacts/nupkg \
+            -p:Version="$VERSION" \
+            -p:UseProjectReferences=false \
+            -p:PicoCfgPackageVersion="$VERSION" \
+            -p:RestoreSources="$NUGET_SOURCE" \
+            -p:RestoreAdditionalProjectSources="$NUPKG_DIR"
 
           dotnet pack src/PicoCfg/PicoCfg.csproj \
             --configuration Release \
             --output ./artifacts/nupkg \
-            -p:Version=${{ steps.version.outputs.VERSION }} \
+            -p:Version="$VERSION" \
             -p:UseProjectReferences=false \
-            -p:ContinuousIntegrationBuild=true \
-            -p:Deterministic=true \
-            -p:RestoreAdditionalProjectSources=./artifacts/nupkg
+            -p:PicoCfgPackageVersion="$VERSION" \
+            -p:RestoreSources="$NUGET_SOURCE" \
+            -p:RestoreAdditionalProjectSources="$NUPKG_DIR"
 
-      - name: Upload packages
+      - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
           name: nupkg
@@ -71,7 +92,7 @@ jobs:
             ./artifacts/nupkg/*.snupkg
 
   publish:
-    name: Publish to NuGet
+    name: Publish release
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: pack
@@ -80,21 +101,20 @@ jobs:
       contents: write
 
     steps:
-      - name: Download packages
+      - name: Download package artifacts
         uses: actions/download-artifact@v4
         with:
           name: nupkg
-          path: ./artifacts/nupkg
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Publish packages
+      - name: Publish packages to NuGet
         shell: bash
         run: |
-          cd ./artifacts/nupkg
+          shopt -s nullglob
           for file in *.nupkg; do
             if [[ "$file" != *.snupkg ]] && [[ "$file" != *.symbols.nupkg ]]; then
               dotnet nuget push "$file" \
@@ -108,9 +128,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: ${{ github.event.repository.name }} ${{ github.ref_name }}
-          draft: false
+          name: PicoCfg ${{ github.ref_name }}
           generate_release_notes: true
           files: |
-            artifacts/nupkg/*.nupkg
-            artifacts/nupkg/*.snupkg
+            *.nupkg
+            *.snupkg

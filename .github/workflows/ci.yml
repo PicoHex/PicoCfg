@@ -14,33 +14,33 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DOTNET_VERSION: 10.x
+  DOTNET_VERSION: 10.0.x
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
 jobs:
   validate:
     name: Validate (${{ matrix.logical-target }})
     runs-on: ${{ matrix.runs-on }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
           - logical-target: win-x64
-            rid: win-x64
             runs-on: windows-latest
+            rid: win-x64
           - logical-target: win-arm64
-            rid: win-arm64
             runs-on: windows-11-arm
+            rid: win-arm64
           - logical-target: linux-x64
-            rid: linux-x64
             runs-on: ubuntu-latest
+            rid: linux-x64
           - logical-target: linux-arm64
-            rid: linux-arm64
             runs-on: ubuntu-24.04-arm
+            rid: linux-arm64
           - logical-target: osx-arm64
-            rid: osx-arm64
             runs-on: macos-latest
+            rid: osx-arm64
 
     steps:
       - name: Checkout repository
@@ -52,29 +52,27 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Show logical target
-        shell: bash
-        run: echo "Validating ${{ matrix.logical-target }} on ${{ matrix.runs-on }}"
-
-      - name: Restore
-        run: dotnet restore tests/PicoCfg.Tests/PicoCfg.Tests.csproj -p:UseProjectReferences=true
-
-      - name: Build
-        run: dotnet build tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-restore -p:UseProjectReferences=true
-
-      - name: Test
-        run: dotnet test --project tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-build --verbosity normal -p:UseProjectReferences=true
+        run: echo Testing ${{ matrix.logical-target }} with RID ${{ matrix.rid }}
 
       - name: Install Linux AOT prerequisites
         if: startsWith(matrix.rid, 'linux-')
-        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang zlib1g-dev
 
-      - name: Install Windows AOT prerequisites
-        if: startsWith(matrix.rid, 'win-')
-        uses: seanmiddleditch/gha-setup-vsdevenv@master
+          if [[ "${{ matrix.rid }}" == "linux-arm64" ]]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+          fi
 
-      - name: Install macOS command line tools
-        if: startsWith(matrix.rid, 'osx-')
-        run: xcode-select --install || true
+      - name: Restore dependencies
+        run: dotnet restore -p:UseProjectReferences=true
 
-      - name: Publish AOT sample
-        run: dotnet publish samples/PicoCfg.Sample/PicoCfg.Sample.csproj --configuration Release --runtime ${{ matrix.rid }} --self-contained --no-restore -p:UseProjectReferences=true -o ./artifacts/aot-${{ matrix.logical-target }}
+      - name: Build
+        run: dotnet build --configuration Release --no-restore -p:UseProjectReferences=true
+
+      - name: Run tests
+        run: dotnet test --project tests/PicoCfg.Test/PicoCfg.Test.csproj --configuration Release --no-build --verbosity normal --timeout 120s --no-progress --no-ansi -p:UseProjectReferences=true
+
+      - name: Validate AOT publish path
+        run: dotnet publish samples/PicoCfg.Sample/PicoCfg.Sample.csproj --configuration Release --runtime ${{ matrix.rid }} --self-contained -p:UseProjectReferences=true
