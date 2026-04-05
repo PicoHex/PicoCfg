@@ -26,22 +26,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Keep PicoHex logical targets stable.
-          # Hosted runner mapping may use an available x64 OS runner to validate
-          # publish for an ARM64 RID when a native ARM64 hosted runner is not
-          # available to this repository.
           - logical-target: win-x64
             rid: win-x64
             runs-on: windows-latest
           - logical-target: win-arm64
             rid: win-arm64
-            runs-on: windows-latest
+            runs-on: windows-11-arm
           - logical-target: linux-x64
             rid: linux-x64
             runs-on: ubuntu-latest
           - logical-target: linux-arm64
             rid: linux-arm64
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-24.04-arm
           - logical-target: osx-arm64
             rid: osx-arm64
             runs-on: macos-latest
@@ -70,14 +66,7 @@ jobs:
 
       - name: Install Linux AOT prerequisites
         if: startsWith(matrix.rid, 'linux-')
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang zlib1g-dev
-
-          if [[ "${{ matrix.rid }}" == "linux-arm64" ]]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
-          fi
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
 
       - name: Install Windows AOT prerequisites
         if: startsWith(matrix.rid, 'win-')
@@ -88,4 +77,4 @@ jobs:
         run: xcode-select --install || true
 
       - name: Publish AOT sample
-        run: dotnet publish samples/PicoCfg.Sample/PicoCfg.Sample.csproj --configuration Release -r ${{ matrix.rid }} --self-contained -o ./artifacts/aot-${{ matrix.logical-target }}
+        run: dotnet publish samples/PicoCfg.Sample/PicoCfg.Sample.csproj --configuration Release --runtime ${{ matrix.rid }} --self-contained --no-restore -p:UseProjectReferences=true -o ./artifacts/aot-${{ matrix.logical-target }}
