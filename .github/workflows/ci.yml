@@ -72,7 +72,7 @@ jobs:
         run: dotnet build --configuration Release --no-restore -p:UseProjectReferences=true
 
       - name: Run tests
-        run: dotnet test --project tests/PicoCfg.Test/PicoCfg.Test.csproj --configuration Release --no-build --verbosity normal --timeout 120s --no-progress --no-ansi -p:UseProjectReferences=true
+        run: dotnet test --project tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-build --verbosity normal --timeout 120s --no-progress --no-ansi -p:UseProjectReferences=true
 
       - name: Validate AOT publish path
         run: dotnet publish samples/PicoCfg.Sample/PicoCfg.Sample.csproj --configuration Release --runtime ${{ matrix.rid }} --self-contained -p:UseProjectReferences=true
