@@ -9,7 +9,8 @@ public static class CfgSnapshotExtensions
     /// </summary>
     public static string? GetValue(this ICfgSnapshot snapshot, string path)
     {
-        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot is null)
+            throw new ArgumentNullException(nameof(snapshot));
         return snapshot.TryGetValue(path, out var value) ? value : null;
     }
 }
