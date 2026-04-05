@@ -7,8 +7,8 @@
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
     </PropertyGroup>
-    
-    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release' and '$(RuntimeIdentifier)' != ''">
         <PublishAot>true</PublishAot>
         <SelfContained>true</SelfContained>
         <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
