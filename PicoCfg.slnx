@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/PicoCfg.Benchmarks/PicoCfg.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/PicoCfg.Sample/PicoCfg.Sample.csproj" />
   </Folder>
