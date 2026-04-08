@@ -74,6 +74,17 @@ public class CfgBuilderTests
         await Assert.That(secondProvider.DisposeCalled).IsTrue();
     }
 
+    [Test]
+    public async Task BuildAsync_WithDictionaryFactorySource_UsesLatestFactoryValues()
+    {
+        var builder = Cfg.CreateBuilder();
+        builder.Add(() => new Dictionary<string, string> { ["factoryKey"] = "factoryValue" });
+
+        var root = await builder.BuildAsync();
+
+        await Assert.That(root.Snapshot.GetValue("factoryKey")).IsEqualTo("factoryValue");
+    }
+
     private class MockSource(string key = "sourceKey", string value = "sourceValue") : ICfgSource
     {
         public ValueTask<ICfgProvider> OpenAsync(CancellationToken ct = default)
