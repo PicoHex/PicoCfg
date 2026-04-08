@@ -10,6 +10,9 @@ namespace PicoCfg.Abs;
 /// A root publishes a new snapshot when its composed provider snapshot sequence changes.
 /// <see cref="GetChangeSignal"/> returns the current one-shot signal for the current published
 /// root snapshot version.
+/// <see cref="ReloadAsync"/> publishes at most one new composed snapshot per call.
+/// When it returns <see langword="false"/>, no provider published a new version and the current
+/// <see cref="Snapshot"/> instance is retained.
 /// </summary>
 public interface ICfgRoot : IAsyncDisposable
 {

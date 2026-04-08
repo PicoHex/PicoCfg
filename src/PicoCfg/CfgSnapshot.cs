@@ -1,10 +1,22 @@
 namespace PicoCfg;
 
-internal sealed class CfgSnapshot(IReadOnlyDictionary<string, string> values) : ICfgSnapshot
+internal sealed class CfgSnapshot : ICfgSnapshot
 {
-    public static CfgSnapshot Empty { get; } = new(new Dictionary<string, string>());
+    public static CfgSnapshot Empty { get; } = new(new Dictionary<string, string>(), 0);
 
-    internal IReadOnlyDictionary<string, string> Values { get; } = values;
+    internal CfgSnapshot(IReadOnlyDictionary<string, string> values)
+        : this(values, ConfigDataComparer.ComputeFingerprint(values))
+    {
+    }
+
+    internal CfgSnapshot(IReadOnlyDictionary<string, string> values, ulong fingerprint)
+    {
+        Values = values;
+        Fingerprint = fingerprint;
+    }
+
+    internal IReadOnlyDictionary<string, string> Values { get; }
+    internal ulong Fingerprint { get; }
 
     public bool TryGetValue(string path, out string? value)
     {

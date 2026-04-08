@@ -9,6 +9,11 @@ namespace PicoCfg.Abs;
 /// snapshot instance must be retained.
 /// <see cref="GetChangeSignal"/> returns the current one-shot signal for the current published
 /// snapshot version.
+/// Returning <see langword="false"/> from <see cref="ReloadAsync"/> is authoritative: the provider's
+/// published snapshot version is unchanged, and callers may retain the current <see cref="Snapshot"/>
+/// reference without re-reading it.
+/// Returning <see langword="true"/> indicates that the provider may have published a new snapshot
+/// version, so callers should re-sample <see cref="Snapshot"/>.
 /// </summary>
 public interface ICfgProvider : IAsyncDisposable
 {
