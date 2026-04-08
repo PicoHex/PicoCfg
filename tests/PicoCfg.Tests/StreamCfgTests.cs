@@ -223,6 +223,72 @@ public class StreamCfgTests
     }
 
     [Test]
+    public async Task StreamCfgProvider_ReloadAsync_WithVersionStampUnchanged_SkipsStreamFactory()
+    {
+        var calls = 0;
+        var content = "key1=value1";
+        var provider = new StreamCfgProvider(
+            () =>
+            {
+                calls++;
+                return new MemoryStream(Encoding.UTF8.GetBytes(content));
+            },
+            () => 1
+        );
+
+        var initialChanged = await provider.ReloadAsync();
+        content = "key1=value2";
+        var changed = await provider.ReloadAsync();
+
+        await Assert.That(initialChanged).IsTrue();
+        await Assert.That(changed).IsFalse();
+        await Assert.That(calls).IsEqualTo(1);
+        await Assert.That(provider.Snapshot.GetValue("key1")).IsEqualTo("value1");
+    }
+
+    [Test]
+    public async Task StreamCfgProvider_ReloadAsync_WithChangedVersionStampAndSameContent_KeepsSnapshot()
+    {
+        var stamp = 1;
+        const string content = "key1=value1";
+        var provider = new StreamCfgProvider(
+            () => new MemoryStream(Encoding.UTF8.GetBytes(content)),
+            () => stamp
+        );
+
+        var initialChanged = await provider.ReloadAsync();
+        var originalSnapshot = provider.Snapshot;
+        stamp = 2;
+        var changed = await provider.ReloadAsync();
+
+        await Assert.That(initialChanged).IsTrue();
+        await Assert.That(changed).IsFalse();
+        await Assert.That(provider.Snapshot).IsSameReferenceAs(originalSnapshot);
+    }
+
+    [Test]
+    public async Task StreamCfgProvider_ReloadAsync_WithChangedVersionStampAndChangedContent_PublishesNewSnapshot()
+    {
+        var stamp = 1;
+        var content = "key1=value1";
+        var provider = new StreamCfgProvider(
+            () => new MemoryStream(Encoding.UTF8.GetBytes(content)),
+            () => stamp
+        );
+
+        var initialChanged = await provider.ReloadAsync();
+        var originalSnapshot = provider.Snapshot;
+        stamp = 2;
+        content = "key1=value2";
+        var changed = await provider.ReloadAsync();
+
+        await Assert.That(initialChanged).IsTrue();
+        await Assert.That(changed).IsTrue();
+        await Assert.That(provider.Snapshot).IsNotSameReferenceAs(originalSnapshot);
+        await Assert.That(provider.Snapshot.GetValue("key1")).IsEqualTo("value2");
+    }
+
+    [Test]
     public async Task DictionarySource_PreservesValuesWithoutTextRoundTrip()
     {
         var builder = Cfg.CreateBuilder();
@@ -238,5 +304,32 @@ public class StreamCfgTests
 
         await Assert.That(config.Snapshot.GetValue("withEquals")).IsEqualTo("a=b=c");
         await Assert.That(config.Snapshot.GetValue("withNewLine")).IsEqualTo("line1\nline2");
+    }
+
+    [Test]
+    public async Task BuilderAdd_StreamFactoryWithVersionStamp_UsesVersionStampShortCircuit()
+    {
+        var builder = Cfg.CreateBuilder();
+        var content = "key=value1";
+        var stamp = 1;
+        var calls = 0;
+
+        builder.Add(
+            () =>
+            {
+                calls++;
+                return new MemoryStream(Encoding.UTF8.GetBytes(content));
+            },
+            () => stamp
+        );
+
+        var root = await builder.BuildAsync();
+        stamp = 1;
+        content = "key=value2";
+        var changed = await root.ReloadAsync();
+
+        await Assert.That(changed).IsFalse();
+        await Assert.That(calls).IsEqualTo(1);
+        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("value1");
     }
 }
