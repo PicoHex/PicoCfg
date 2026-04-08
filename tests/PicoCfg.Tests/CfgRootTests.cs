@@ -69,6 +69,59 @@ public class CfgRootTests
     }
 
     [Test]
+    public async Task ReloadAsync_WhenProviderReloadFails_DoesNotPublishPartialState()
+    {
+        var provider1 = new MockProvider(
+            [
+                new Dictionary<string, string> { ["key"] = "before" },
+                new Dictionary<string, string> { ["key"] = "after" },
+            ]
+        );
+        var provider2 = new FailingReloadProvider();
+        var root = new CfgRoot([provider1, provider2]);
+        var originalSnapshot = root.Snapshot;
+
+        await Assert.That(async () => await root.ReloadAsync()).Throws<InvalidOperationException>();
+        await Assert.That(root.Snapshot).IsSameReferenceAs(originalSnapshot);
+        await Assert.That(originalSnapshot.GetValue("key")).IsEqualTo("before");
+    }
+
+    [Test]
+    public async Task ReloadAsync_RunsProvidersInParallel()
+    {
+        ConcurrentReloadProvider.Reset(expectedConcurrentReloads: 2);
+        var provider1 = new ConcurrentReloadProvider("first", "value1", delayMs: 50);
+        var provider2 = new ConcurrentReloadProvider("second", "value2", delayMs: 50);
+        var root = new CfgRoot([provider1, provider2]);
+
+        var changed = await root.ReloadAsync();
+
+        await Assert.That(changed).IsTrue();
+        await Assert.That(provider1.MaxConcurrentReloads).IsEqualTo(1);
+        await Assert.That(provider2.MaxConcurrentReloads).IsEqualTo(1);
+        await Assert.That(ConcurrentReloadProvider.MaxObservedConcurrentReloads).IsEqualTo(2);
+        await Assert.That(root.Snapshot.GetValue("first")).IsEqualTo("value1");
+        await Assert.That(root.Snapshot.GetValue("second")).IsEqualTo("value2");
+    }
+
+    [Test]
+    public async Task ReloadAsync_ConcurrentCalls_AreSerialized()
+    {
+        var provider = new GatedReloadProvider();
+        var root = new CfgRoot([provider]);
+
+        var reload1 = root.ReloadAsync().AsTask();
+        await provider.WaitForFirstEntryAsync();
+        var reload2 = root.ReloadAsync().AsTask();
+
+        await provider.AllowFirstReloadToComplete();
+        await reload1;
+        await reload2;
+
+        await Assert.That(provider.MaxConcurrentReloads).IsEqualTo(1);
+    }
+
+    [Test]
     public async Task GetChangeSignal_ChangesWhenRootReloadUpdatesSnapshot()
     {
         var provider = new MockProvider(
@@ -225,6 +278,127 @@ public class CfgRootTests
         public void NotifyChanged()
         {
             _changeSignal.NotifyChanged();
+        }
+    }
+
+    private sealed class FailingReloadProvider : ICfgProvider
+    {
+        public ICfgSnapshot Snapshot { get; } = new MockSnapshot(new Dictionary<string, string>());
+
+        public ValueTask<bool> ReloadAsync(CancellationToken ct = default)
+        {
+            throw new InvalidOperationException("Reload failed.");
+        }
+
+        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class ConcurrentReloadProvider(string key, string value, int delayMs) : ICfgProvider
+    {
+        private int _activeReloads;
+        private static int _globalActiveReloads;
+        private static int _enteredReloads;
+        private static int _expectedConcurrentReloads;
+        private static TaskCompletionSource _allReloadsEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public static int MaxObservedConcurrentReloads;
+
+        public int MaxConcurrentReloads { get; private set; }
+        public ICfgSnapshot Snapshot { get; private set; } = new MockSnapshot(new Dictionary<string, string>());
+
+        public async ValueTask<bool> ReloadAsync(CancellationToken ct = default)
+        {
+            var active = Interlocked.Increment(ref _activeReloads);
+            var globalActive = Interlocked.Increment(ref _globalActiveReloads);
+            UpdateMax(active, globalActive);
+
+            if (Interlocked.Increment(ref _enteredReloads) == _expectedConcurrentReloads)
+                _allReloadsEntered.TrySetResult();
+
+            try
+            {
+                await _allReloadsEntered.Task.WaitAsync(ct);
+                await Task.Delay(delayMs, ct);
+                Snapshot = new MockSnapshot(new Dictionary<string, string> { [key] = value });
+                return true;
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _activeReloads);
+                Interlocked.Decrement(ref _globalActiveReloads);
+            }
+        }
+
+        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        private void UpdateMax(int active, int globalActive)
+        {
+            if (active > MaxConcurrentReloads)
+                MaxConcurrentReloads = active;
+
+            var currentMax = MaxObservedConcurrentReloads;
+            while (globalActive > currentMax)
+            {
+                var original = Interlocked.CompareExchange(ref MaxObservedConcurrentReloads, globalActive, currentMax);
+                if (original == currentMax)
+                    break;
+
+                currentMax = original;
+            }
+        }
+
+        public static void Reset(int expectedConcurrentReloads)
+        {
+            MaxObservedConcurrentReloads = 0;
+            _globalActiveReloads = 0;
+            _enteredReloads = 0;
+            _expectedConcurrentReloads = expectedConcurrentReloads;
+            _allReloadsEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+    }
+
+    private sealed class GatedReloadProvider : ICfgProvider
+    {
+        private int _activeReloads;
+        private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int MaxConcurrentReloads { get; private set; }
+        public ICfgSnapshot Snapshot { get; } = new MockSnapshot(new Dictionary<string, string>());
+
+        public async ValueTask<bool> ReloadAsync(CancellationToken ct = default)
+        {
+            var active = Interlocked.Increment(ref _activeReloads);
+            if (active > MaxConcurrentReloads)
+                MaxConcurrentReloads = active;
+
+            _entered.TrySetResult();
+
+            try
+            {
+                await _release.Task.WaitAsync(ct);
+                return false;
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _activeReloads);
+            }
+        }
+
+        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public Task WaitForFirstEntryAsync() => _entered.Task;
+
+        public ValueTask AllowFirstReloadToComplete()
+        {
+            _release.TrySetResult();
+            return ValueTask.CompletedTask;
         }
     }
 
