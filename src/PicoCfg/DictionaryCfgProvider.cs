@@ -37,13 +37,12 @@ internal sealed class DictionaryCfgProvider : ICfgProvider
     {
         ct.ThrowIfCancellationRequested();
 
-        object? versionStamp = null;
         var versionStampFactory = _versionStampFactory;
+        var versionStamp = versionStampFactory?.Invoke();
         if (versionStampFactory is not null)
         {
             lock (_syncRoot)
             {
-                versionStamp = versionStampFactory();
                 if (Equals(_versionStamp, versionStamp))
                     return ValueTask.FromResult(false);
             }
@@ -55,15 +54,14 @@ internal sealed class DictionaryCfgProvider : ICfgProvider
             : sourceData.TryGetNonEnumeratedCount(out var count)
                 ? new Dictionary<string, string>(count)
                 : new Dictionary<string, string>();
-        var fingerprint = 14695981039346656037UL;
 
         foreach (var (key, value) in sourceData)
         {
             ct.ThrowIfCancellationRequested();
             newData[key] = value;
-            fingerprint += ComputeHash(key, value);
         }
 
+        var fingerprint = ConfigDataComparer.ComputeFingerprint(newData);
         return ValueTask.FromResult(PublishSnapshot(newData, fingerprint, versionStamp));
     }
 
@@ -92,13 +90,5 @@ internal sealed class DictionaryCfgProvider : ICfgProvider
 
         changedSignal.NotifyChanged();
         return true;
-    }
-
-    private static ulong ComputeHash(string key, string value)
-    {
-        var hash = new HashCode();
-        hash.Add(key, StringComparer.Ordinal);
-        hash.Add(value, StringComparer.Ordinal);
-        return unchecked((ulong)hash.ToHashCode());
     }
 }

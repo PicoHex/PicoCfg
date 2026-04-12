@@ -289,6 +289,45 @@ public class StreamCfgTests
     }
 
     [Test]
+    public async Task StreamCfgProvider_ReloadAsync_WithDuplicateKeysAndSameVisibleState_KeepsSnapshot()
+    {
+        var content = "key=first\nkey=value";
+        var provider = new StreamCfgProvider(() => new MemoryStream(Encoding.UTF8.GetBytes(content)));
+
+        var initialChanged = await provider.ReloadAsync();
+        var originalSnapshot = provider.Snapshot;
+        content = "key=different\nkey=value";
+
+        var changed = await provider.ReloadAsync();
+
+        await Assert.That(initialChanged).IsTrue();
+        await Assert.That(changed).IsFalse();
+        await Assert.That(provider.Snapshot).IsSameReferenceAs(originalSnapshot);
+        await Assert.That(provider.Snapshot.GetValue("key")).IsEqualTo("value");
+    }
+
+    [Test]
+    public async Task StreamCfgProvider_ReloadAsync_CallsVersionStampFactoryOutsideLock()
+    {
+        StreamCfgProvider? provider = null;
+        provider = new StreamCfgProvider(
+            () => new MemoryStream(Encoding.UTF8.GetBytes("key=value")),
+            () =>
+            {
+                var snapshotTask = Task.Run(() => provider!.Snapshot.GetValue("key"));
+                if (!snapshotTask.Wait(TimeSpan.FromSeconds(1)))
+                    throw new TimeoutException("Version stamp factory ran while provider lock was held.");
+
+                return 1;
+            }
+        );
+
+        var changed = await provider.ReloadAsync();
+
+        await Assert.That(changed).IsTrue();
+    }
+
+    [Test]
     public async Task DictionarySource_PreservesValuesWithoutTextRoundTrip()
     {
         var builder = Cfg.CreateBuilder();

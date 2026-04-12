@@ -32,13 +32,12 @@ internal sealed class StreamCfgProvider : ICfgProvider
 
     public async ValueTask<bool> ReloadAsync(CancellationToken ct = default)
     {
-        object? versionStamp = null;
         var versionStampFactory = _versionStampFactory;
+        var versionStamp = versionStampFactory?.Invoke();
         if (versionStampFactory is not null)
         {
             lock (_syncRoot)
             {
-                versionStamp = versionStampFactory();
                 if (Equals(_versionStamp, versionStamp))
                     return false;
             }
@@ -51,7 +50,6 @@ internal sealed class StreamCfgProvider : ICfgProvider
         using var reader = new StreamReader(stream);
 
         var newData = new Dictionary<string, string>();
-        var fingerprint = 14695981039346656037UL;
         while (await reader.ReadLineAsync(ct) is { } line)
         {
             if (string.IsNullOrWhiteSpace(line))
@@ -64,9 +62,9 @@ internal sealed class StreamCfgProvider : ICfgProvider
             var key = line[..separatorIndex].Trim();
             var value = line[(separatorIndex + 1)..].Trim();
             newData[key] = value;
-            fingerprint += ComputeHash(key, value);
         }
 
+        var fingerprint = ConfigDataComparer.ComputeFingerprint(newData);
         return PublishSnapshot(newData, fingerprint, versionStamp);
     }
 
@@ -95,13 +93,5 @@ internal sealed class StreamCfgProvider : ICfgProvider
 
         changedSignal.NotifyChanged();
         return true;
-    }
-
-    private static ulong ComputeHash(string key, string value)
-    {
-        var hash = new HashCode();
-        hash.Add(key, StringComparer.Ordinal);
-        hash.Add(value, StringComparer.Ordinal);
-        return unchecked((ulong)hash.ToHashCode());
     }
 }

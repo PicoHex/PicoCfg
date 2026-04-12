@@ -89,4 +89,52 @@ public class DictionaryCfgTests
         await Assert.That(provider.Snapshot).IsNotSameReferenceAs(originalSnapshot);
         await Assert.That(provider.Snapshot.GetValue("key")).IsEqualTo("after");
     }
+
+    [Test]
+    public async Task DictionaryCfgProvider_ReloadAsync_WithDuplicateKeysAndSameVisibleState_KeepsSnapshot()
+    {
+        var items = new[]
+        {
+            new KeyValuePair<string, string>("key", "first"),
+            new KeyValuePair<string, string>("key", "value"),
+        };
+        var provider = new DictionaryCfgProvider(() => items);
+
+        var initialChanged = await provider.ReloadAsync();
+        var originalSnapshot = provider.Snapshot;
+
+        items =
+        [
+            new KeyValuePair<string, string>("key", "different"),
+            new KeyValuePair<string, string>("key", "value"),
+        ];
+
+        var changed = await provider.ReloadAsync();
+
+        await Assert.That(initialChanged).IsTrue();
+        await Assert.That(changed).IsFalse();
+        await Assert.That(provider.Snapshot).IsSameReferenceAs(originalSnapshot);
+        await Assert.That(provider.Snapshot.GetValue("key")).IsEqualTo("value");
+    }
+
+    [Test]
+    public async Task DictionaryCfgProvider_ReloadAsync_CallsVersionStampFactoryOutsideLock()
+    {
+        DictionaryCfgProvider? provider = null;
+        provider = new DictionaryCfgProvider(
+            () => new Dictionary<string, string> { ["key"] = "value" },
+            () =>
+            {
+                var snapshotTask = Task.Run(() => provider!.Snapshot.GetValue("key"));
+                if (!snapshotTask.Wait(TimeSpan.FromSeconds(1)))
+                    throw new TimeoutException("Version stamp factory ran while provider lock was held.");
+
+                return 1;
+            }
+        );
+
+        var changed = await provider.ReloadAsync();
+
+        await Assert.That(changed).IsTrue();
+    }
 }
