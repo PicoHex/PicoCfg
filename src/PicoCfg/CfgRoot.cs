@@ -4,12 +4,14 @@ using System.Runtime.ExceptionServices;
 
 internal sealed class CfgRoot : ICfgRoot
 {
+    private readonly Lock _disposeSyncRoot = new();
     private readonly Lock _syncRoot = new();
     private readonly SemaphoreSlim _reloadGate = new(1, 1);
     private readonly List<ICfgProvider> _providers;
     private ICfgSnapshot[] _providerSnapshots;
     private ICfgSnapshot _snapshot;
     private CfgChangeSignal _changeSignal = new();
+    private Task? _disposeTask;
 
     public CfgRoot(IEnumerable<ICfgProvider> providers)
     {
@@ -54,28 +56,48 @@ internal sealed class CfgRoot : ICfgRoot
 
     public async ValueTask DisposeAsync()
     {
-        List<Exception>? exceptions = null;
-
-        for (var i = _providers.Count - 1; i >= 0; i--)
+        Task disposeTask;
+        lock (_disposeSyncRoot)
         {
-            try
-            {
-                await _providers[i].DisposeAsync();
-            }
-            catch (Exception ex)
-            {
-                exceptions ??= [];
-                exceptions.Add(ex);
-            }
+            _disposeTask ??= DisposeCoreAsync();
+            disposeTask = _disposeTask;
         }
 
-        if (exceptions is null)
-            return;
+        await disposeTask;
+    }
 
-        if (exceptions.Count is 1)
-            ExceptionDispatchInfo.Throw(exceptions[0]);
+    private async Task DisposeCoreAsync()
+    {
+        await _reloadGate.WaitAsync();
+        try
+        {
+            List<Exception>? exceptions = null;
 
-        throw new AggregateException(exceptions);
+            for (var i = _providers.Count - 1; i >= 0; i--)
+            {
+                try
+                {
+                    await _providers[i].DisposeAsync();
+                }
+                catch (Exception ex)
+                {
+                    exceptions ??= [];
+                    exceptions.Add(ex);
+                }
+            }
+
+            if (exceptions is null)
+                return;
+
+            if (exceptions.Count is 1)
+                ExceptionDispatchInfo.Throw(exceptions[0]);
+
+            throw new AggregateException(exceptions);
+        }
+        finally
+        {
+            _reloadGate.Release();
+        }
     }
 
     private bool PublishSnapshot(bool[] providerReloadResults)

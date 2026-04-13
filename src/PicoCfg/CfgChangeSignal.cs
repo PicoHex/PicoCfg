@@ -42,6 +42,7 @@ internal sealed class CfgChangeSignal : ICfgChangeSignal
         }
 
         ctsToCancel.Cancel();
+        ctsToCancel.Dispose();
     }
 }
 
