@@ -34,13 +34,8 @@ internal sealed class CfgRoot : ICfgRoot
         await _reloadGate.WaitAsync(ct);
         try
         {
-            var reloadTasks = new Task<bool>[_providers.Count];
-            for (var i = 0; i < _providers.Count; i++)
-                reloadTasks[i] = _providers[i].ReloadAsync(ct).AsTask();
-
-            var providerReloadResults = await Task.WhenAll(reloadTasks);
-
-            return PublishSnapshot(providerReloadResults);
+            var providerReloadResults = await ReloadProvidersAsync(ct);
+            return TryPublishReloadedSnapshot(providerReloadResults);
         }
         finally
         {
@@ -100,27 +95,53 @@ internal sealed class CfgRoot : ICfgRoot
         }
     }
 
-    private bool PublishSnapshot(bool[] providerReloadResults)
+    private async Task<bool[]> ReloadProvidersAsync(CancellationToken ct)
     {
-        if (!providerReloadResults.Any(static changed => changed))
+        var reloadTasks = new Task<bool>[_providers.Count];
+        for (var i = 0; i < _providers.Count; i++)
+            reloadTasks[i] = _providers[i].ReloadAsync(ct).AsTask();
+
+        return await Task.WhenAll(reloadTasks);
+    }
+
+    private bool TryPublishReloadedSnapshot(bool[] providerReloadResults)
+    {
+        if (!AnyProviderReloaded(providerReloadResults))
             return false;
 
-        var providerSnapshots = (ICfgSnapshot[])_providerSnapshots.Clone();
+        var reloadedProviderSnapshots = CreateReloadedProviderSnapshots(providerReloadResults);
 
-        for (var i = 0; i < providerReloadResults.Length; i++)
+        // Root publication is based on provider snapshot identity rather than just the final visible values.
+        // A provider can publish a new snapshot that stays overridden by later providers, and callers should
+        // still observe a fresh root snapshot/change signal for that publication.
+        if (!ProviderSnapshotSequenceChanged(_providerSnapshots, reloadedProviderSnapshots))
+            return false;
+
+        // Compose once on the reload path so steady-state reads stay on the current published snapshot.
+        var publishedSnapshot = CfgSnapshotComposer.CreateSnapshot(reloadedProviderSnapshots);
+        return PublishRootSnapshot(reloadedProviderSnapshots, publishedSnapshot);
+    }
+
+    private ICfgSnapshot[] CreateReloadedProviderSnapshots(IReadOnlyList<bool> providerReloadResults)
+    {
+        var reloadedProviderSnapshots = (ICfgSnapshot[])_providerSnapshots.Clone();
+
+        for (var i = 0; i < providerReloadResults.Count; i++)
         {
             if (providerReloadResults[i])
-                providerSnapshots[i] = _providers[i].Snapshot;
+                reloadedProviderSnapshots[i] = _providers[i].Snapshot;
         }
 
-        if (SnapshotSequenceEqual(_providerSnapshots, providerSnapshots))
-            return false;
+        return reloadedProviderSnapshots;
+    }
 
+    private bool PublishRootSnapshot(ICfgSnapshot[] providerSnapshots, ICfgSnapshot snapshot)
+    {
         CfgChangeSignal? changedSignal = null;
         lock (_syncRoot)
         {
             _providerSnapshots = providerSnapshots;
-            _snapshot = CfgSnapshotComposer.CreateSnapshot(providerSnapshots);
+            _snapshot = snapshot;
             changedSignal = _changeSignal;
             _changeSignal = new CfgChangeSignal();
         }
@@ -129,6 +150,19 @@ internal sealed class CfgRoot : ICfgRoot
         return true;
     }
 
-    private static bool SnapshotSequenceEqual(IReadOnlyList<ICfgSnapshot> left, IReadOnlyList<ICfgSnapshot> right) =>
-        CfgSnapshotComposer.SequenceEqual(left, right);
+    private static bool AnyProviderReloaded(IReadOnlyList<bool> providerReloadResults)
+    {
+        for (var i = 0; i < providerReloadResults.Count; i++)
+        {
+            if (providerReloadResults[i])
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool ProviderSnapshotSequenceChanged(
+        IReadOnlyList<ICfgSnapshot> currentSnapshots,
+        IReadOnlyList<ICfgSnapshot> nextSnapshots
+    ) => !CfgSnapshotComposer.SequenceEqual(currentSnapshots, nextSnapshots);
 }

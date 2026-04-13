@@ -8,8 +8,7 @@ internal static class CfgSnapshotComposer
         {
             0 => CfgSnapshot.Empty,
             1 => providerSnapshots[0],
-            _ when TryCreateFlattenedSnapshot(providerSnapshots, out var snapshot) => snapshot,
-            _ => new CompositeCfgSnapshot(providerSnapshots),
+            _ => CreateMultiProviderSnapshot(providerSnapshots),
         };
     }
 
@@ -25,6 +24,14 @@ internal static class CfgSnapshotComposer
         }
 
         return true;
+    }
+
+    private static ICfgSnapshot CreateMultiProviderSnapshot(IReadOnlyList<ICfgSnapshot> providerSnapshots)
+    {
+        // Flatten native snapshots on the reload path so steady-state reads stay on a single dictionary lookup.
+        return TryCreateFlattenedSnapshot(providerSnapshots, out var snapshot)
+            ? snapshot
+            : CreateCompositeFallbackSnapshot(providerSnapshots);
     }
 
     private static bool TryCreateFlattenedSnapshot(
@@ -48,12 +55,20 @@ internal static class CfgSnapshotComposer
         var mergedValues = new Dictionary<string, string>(capacity);
         for (var i = 0; i < dictionaries.Length; i++)
         {
+            // Merge in provider order so later providers override earlier ones.
             foreach (var (key, value) in dictionaries[i])
                 mergedValues[key] = value;
         }
 
         snapshot = new CfgSnapshot(mergedValues);
         return true;
+    }
+
+    private static ICfgSnapshot CreateCompositeFallbackSnapshot(IReadOnlyList<ICfgSnapshot> providerSnapshots)
+    {
+        // Arbitrary ICfgSnapshot implementations can have custom lookup behavior, so fallback preserves
+        // provider order and resolves values at read time instead of flattening away that behavior.
+        return new CompositeCfgSnapshot(providerSnapshots);
     }
 
     private sealed class CompositeCfgSnapshot(IReadOnlyList<ICfgSnapshot> snapshots) : ICfgSnapshot
