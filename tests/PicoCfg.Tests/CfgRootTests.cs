@@ -89,9 +89,9 @@ public class CfgRootTests
     [Test]
     public async Task ReloadAsync_RunsProvidersInParallel()
     {
-        ConcurrentReloadProvider.Reset(expectedConcurrentReloads: 2);
-        var provider1 = new ConcurrentReloadProvider("first", "value1", delayMs: 50);
-        var provider2 = new ConcurrentReloadProvider("second", "value2", delayMs: 50);
+        var coordination = new ParallelReloadCoordination(expectedConcurrentReloads: 2);
+        var provider1 = new ConcurrentReloadProvider("first", "value1", coordination);
+        var provider2 = new ConcurrentReloadProvider("second", "value2", coordination);
         var root = new CfgRoot([provider1, provider2]);
 
         var changed = await root.ReloadAsync();
@@ -99,7 +99,7 @@ public class CfgRootTests
         await Assert.That(changed).IsTrue();
         await Assert.That(provider1.MaxConcurrentReloads).IsEqualTo(1);
         await Assert.That(provider2.MaxConcurrentReloads).IsEqualTo(1);
-        await Assert.That(ConcurrentReloadProvider.MaxObservedConcurrentReloads).IsEqualTo(2);
+        await Assert.That(coordination.MaxObservedConcurrentReloads).IsEqualTo(2);
         await Assert.That(root.Snapshot.GetValue("first")).IsEqualTo("value1");
         await Assert.That(root.Snapshot.GetValue("second")).IsEqualTo("value2");
     }
@@ -216,6 +216,66 @@ public class CfgRootTests
         await Assert.That(provider.DisposeCalled).IsTrue();
     }
 
+    [Test]
+    public async Task ReloadAsync_WhenProviderCancellationOccurs_DoesNotPublishPartialSnapshot()
+    {
+        using var cts = new CancellationTokenSource();
+        var provider1 = new MockProvider(
+            [
+                new Dictionary<string, string> { ["key"] = "before" },
+                new Dictionary<string, string> { ["key"] = "after" },
+            ]
+        );
+        var provider2 = new CancelingReloadProvider(cts);
+        var root = new CfgRoot([provider1, provider2]);
+        var originalSnapshot = root.Snapshot;
+
+        await Assert.That(async () => await root.ReloadAsync(cts.Token)).Throws<OperationCanceledException>();
+        await Assert.That(root.Snapshot).IsSameReferenceAs(originalSnapshot);
+        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("before");
+    }
+
+    [Test]
+    public async Task DisposeAsync_ConcurrentCalls_DisposeProvidersOnlyOnce()
+    {
+        var provider = new CountingDisposeProvider();
+        var root = new CfgRoot([provider]);
+
+        await Task.WhenAll(root.DisposeAsync().AsTask(), root.DisposeAsync().AsTask(), root.DisposeAsync().AsTask());
+
+        await Assert.That(provider.DisposeCount).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task ReloadAsync_WhenProviderSequenceChangesButVisibleValueStaysOverridden_PublishesNewSnapshot()
+    {
+        var provider1 = new MockProvider(
+            [
+                new Dictionary<string, string> { ["shared"] = "first-before" },
+                new Dictionary<string, string> { ["shared"] = "first-after" },
+            ]
+        );
+        var provider2 = new MockProvider([new Dictionary<string, string> { ["shared"] = "second" }]);
+        var root = new CfgRoot([provider1, provider2]);
+        var originalSnapshot = root.Snapshot;
+
+        var changed = await root.ReloadAsync();
+
+        await Assert.That(changed).IsTrue();
+        await Assert.That(root.Snapshot).IsNotSameReferenceAs(originalSnapshot);
+        await Assert.That(root.Snapshot.GetValue("shared")).IsEqualTo("second");
+    }
+
+    [Test]
+    public async Task Snapshot_WithCustomSnapshots_UsesCompositeLookupSemantics()
+    {
+        var provider1 = new StaticProvider(new DelegatingSnapshot(path => path == "shared" ? "first" : null));
+        var provider2 = new StaticProvider(new DelegatingSnapshot(path => path == "shared" ? "second" : null));
+        var root = new CfgRoot([provider1, provider2]);
+
+        await Assert.That(root.Snapshot.GetValue("shared")).IsEqualTo("second");
+    }
+
     private sealed class MockProvider : ICfgProvider
     {
         private readonly IReadOnlyList<IReadOnlyDictionary<string, string>> _snapshots;
@@ -295,15 +355,9 @@ public class CfgRootTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class ConcurrentReloadProvider(string key, string value, int delayMs) : ICfgProvider
+    private sealed class ConcurrentReloadProvider(string key, string value, ParallelReloadCoordination coordination) : ICfgProvider
     {
         private int _activeReloads;
-        private static int _globalActiveReloads;
-        private static int _enteredReloads;
-        private static int _expectedConcurrentReloads;
-        private static TaskCompletionSource _allReloadsEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public static int MaxObservedConcurrentReloads;
 
         public int MaxConcurrentReloads { get; private set; }
         public ICfgSnapshot Snapshot { get; private set; } = new MockSnapshot(new Dictionary<string, string>());
@@ -311,23 +365,19 @@ public class CfgRootTests
         public async ValueTask<bool> ReloadAsync(CancellationToken ct = default)
         {
             var active = Interlocked.Increment(ref _activeReloads);
-            var globalActive = Interlocked.Increment(ref _globalActiveReloads);
-            UpdateMax(active, globalActive);
-
-            if (Interlocked.Increment(ref _enteredReloads) == _expectedConcurrentReloads)
-                _allReloadsEntered.TrySetResult();
+            var globalActive = coordination.Enter();
+            UpdateMax(active);
 
             try
             {
-                await _allReloadsEntered.Task.WaitAsync(ct);
-                await Task.Delay(delayMs, ct);
+                await coordination.WaitForAllEnteredAsync(ct);
                 Snapshot = new MockSnapshot(new Dictionary<string, string> { [key] = value });
                 return true;
             }
             finally
             {
                 Interlocked.Decrement(ref _activeReloads);
-                Interlocked.Decrement(ref _globalActiveReloads);
+                coordination.Exit();
             }
         }
 
@@ -335,29 +385,92 @@ public class CfgRootTests
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-        private void UpdateMax(int active, int globalActive)
+        private void UpdateMax(int active)
         {
             if (active > MaxConcurrentReloads)
                 MaxConcurrentReloads = active;
+            coordination.RecordObserved();
+        }
+    }
 
-            var currentMax = MaxObservedConcurrentReloads;
-            while (globalActive > currentMax)
-            {
-                var original = Interlocked.CompareExchange(ref MaxObservedConcurrentReloads, globalActive, currentMax);
-                if (original == currentMax)
-                    break;
+    private sealed class ParallelReloadCoordination(int expectedConcurrentReloads)
+    {
+        private readonly TaskCompletionSource _allEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _activeReloads;
+        private int _enteredReloads;
 
-                currentMax = original;
-            }
+        public int MaxObservedConcurrentReloads { get; private set; }
+
+        public int Enter()
+        {
+            var active = Interlocked.Increment(ref _activeReloads);
+            if (Interlocked.Increment(ref _enteredReloads) == expectedConcurrentReloads)
+                _allEntered.TrySetResult();
+
+            return active;
         }
 
-        public static void Reset(int expectedConcurrentReloads)
+        public Task WaitForAllEnteredAsync(CancellationToken ct) => _allEntered.Task.WaitAsync(ct);
+
+        public void Exit() => Interlocked.Decrement(ref _activeReloads);
+
+        public void RecordObserved()
         {
-            MaxObservedConcurrentReloads = 0;
-            _globalActiveReloads = 0;
-            _enteredReloads = 0;
-            _expectedConcurrentReloads = expectedConcurrentReloads;
-            _allReloadsEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var current = _activeReloads;
+            if (current > MaxObservedConcurrentReloads)
+                MaxObservedConcurrentReloads = current;
+        }
+    }
+
+    private sealed class CancelingReloadProvider(CancellationTokenSource cancellationSource) : ICfgProvider
+    {
+        public ICfgSnapshot Snapshot { get; } = new MockSnapshot(new Dictionary<string, string>());
+
+        public ValueTask<bool> ReloadAsync(CancellationToken ct = default)
+        {
+            cancellationSource.Cancel();
+            ct.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(false);
+        }
+
+        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class CountingDisposeProvider : ICfgProvider
+    {
+        public int DisposeCount { get; private set; }
+        public ICfgSnapshot Snapshot { get; } = new MockSnapshot(new Dictionary<string, string>());
+
+        public ValueTask<bool> ReloadAsync(CancellationToken ct = default) => ValueTask.FromResult(false);
+
+        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
+
+        public ValueTask DisposeAsync()
+        {
+            DisposeCount++;
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class StaticProvider(ICfgSnapshot snapshot) : ICfgProvider
+    {
+        public ICfgSnapshot Snapshot { get; } = snapshot;
+
+        public ValueTask<bool> ReloadAsync(CancellationToken ct = default) => ValueTask.FromResult(false);
+
+        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class DelegatingSnapshot(Func<string, string?> resolver) : ICfgSnapshot
+    {
+        public bool TryGetValue(string path, out string? value)
+        {
+            value = resolver(path);
+            return value is not null;
         }
     }
 

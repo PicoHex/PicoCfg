@@ -75,6 +75,22 @@ public class CfgBuilderTests
     }
 
     [Test]
+    public async Task BuildAsync_WhenLaterSourceIsCancelled_DisposesAlreadyOpenedProviders()
+    {
+        var builder = Cfg.CreateBuilder();
+        var firstProvider = new TrackingProvider("first", "value");
+
+        builder.AddSource(new TrackingSource(firstProvider));
+        builder.AddSource(new CancelledSource());
+
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.That(async () => await builder.BuildAsync(cts.Token)).Throws<OperationCanceledException>();
+        await Assert.That(firstProvider.DisposeCalled).IsTrue();
+    }
+
+    [Test]
     public async Task BuildAsync_WithDictionaryFactorySource_UsesLatestFactoryValues()
     {
         var builder = Cfg.CreateBuilder();
@@ -148,6 +164,15 @@ public class CfgBuilderTests
         public ValueTask<ICfgProvider> OpenAsync(CancellationToken ct = default)
         {
             throw new InvalidOperationException("Source open failed.");
+        }
+    }
+
+    private sealed class CancelledSource : ICfgSource
+    {
+        public ValueTask<ICfgProvider> OpenAsync(CancellationToken ct = default)
+        {
+            ct.ThrowIfCancellationRequested();
+            return ValueTask.FromCanceled<ICfgProvider>(ct);
         }
     }
 

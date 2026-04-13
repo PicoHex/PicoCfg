@@ -121,20 +121,90 @@ public class DictionaryCfgTests
     public async Task DictionaryCfgProvider_ReloadAsync_CallsVersionStampFactoryOutsideLock()
     {
         DictionaryCfgProvider? provider = null;
+        var versionStampEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowVersionStampToExit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var snapshotReadCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         provider = new DictionaryCfgProvider(
             () => new Dictionary<string, string> { ["key"] = "value" },
             () =>
             {
-                var snapshotTask = Task.Run(() => provider!.Snapshot.GetValue("key"));
-                if (!snapshotTask.Wait(TimeSpan.FromSeconds(1)))
-                    throw new TimeoutException("Version stamp factory ran while provider lock was held.");
+                versionStampEntered.TrySetResult();
+                _ = Task.Run(() =>
+                {
+                    _ = provider!.Snapshot.GetValue("key");
+                    snapshotReadCompleted.TrySetResult();
+                });
+                allowVersionStampToExit.Task.GetAwaiter().GetResult();
 
                 return 1;
             }
         );
 
-        var changed = await provider.ReloadAsync();
+        var reloadTask = Task.Run(async () => await provider.ReloadAsync());
+        await versionStampEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await snapshotReadCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        allowVersionStampToExit.TrySetResult();
+
+        var changed = await reloadTask;
 
         await Assert.That(changed).IsTrue();
+    }
+
+    [Test]
+    public async Task DictionaryCfgProvider_ReloadAsync_WithPreCancelledToken_DoesNotInvokeFactories()
+    {
+        var dataFactoryCalls = 0;
+        var versionStampCalls = 0;
+        var provider = new DictionaryCfgProvider(
+            () =>
+            {
+                dataFactoryCalls++;
+                return new Dictionary<string, string> { ["key"] = "value" };
+            },
+            () =>
+            {
+                versionStampCalls++;
+                return 1;
+            }
+        );
+
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.That(async () => await provider.ReloadAsync(cts.Token)).Throws<OperationCanceledException>();
+        await Assert.That(dataFactoryCalls).IsEqualTo(0);
+        await Assert.That(versionStampCalls).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task DictionaryCfgProvider_ReloadAsync_WhenEnumerationIsCancelled_DoesNotPublishSnapshot()
+    {
+        using var cts = new CancellationTokenSource();
+        var sequence = new BlockingSequence(
+            first: new KeyValuePair<string, string>("key", "before"),
+            second: new KeyValuePair<string, string>("key", "after"),
+            onFirstYield: () => cts.Cancel()
+        );
+        var provider = new DictionaryCfgProvider(() => sequence);
+
+        await Assert.That(async () => await provider.ReloadAsync(cts.Token)).Throws<OperationCanceledException>();
+        await Assert.That(provider.Snapshot).IsSameReferenceAs(CfgSnapshot.Empty);
+        await Assert.That(provider.Snapshot.GetValue("key")).IsNull();
+    }
+
+    private sealed class BlockingSequence(
+        KeyValuePair<string, string> first,
+        KeyValuePair<string, string> second,
+        Action onFirstYield
+    ) : IEnumerable<KeyValuePair<string, string>>
+    {
+        public IEnumerator<KeyValuePair<string, string>> GetEnumerator()
+        {
+            onFirstYield();
+            yield return first;
+            yield return second;
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 }

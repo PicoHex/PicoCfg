@@ -40,8 +40,6 @@ public class CfgChangeSignalTests
 
         var waitTask = signal.WaitForChangeAsync(cts.Token).AsTask();
 
-        await Task.Delay(100, cts.Token);
-
         await Assert.That(waitTask.IsCompleted).IsFalse();
 
         signal.NotifyChanged();
@@ -60,8 +58,6 @@ public class CfgChangeSignalTests
         var cts = new CancellationTokenSource();
 
         var waitTask = signal.WaitForChangeAsync(cts.Token).AsTask();
-
-        await Task.Delay(100, cts.Token);
 
         await Assert.That(waitTask.IsCompleted).IsFalse();
 
@@ -97,7 +93,6 @@ public class CfgChangeSignalTests
 
         var secondSignal = new CfgChangeSignal();
         var waitTask2 = secondSignal.WaitForChangeAsync().AsTask();
-        await Task.Delay(100);
         await Assert.That(waitTask2.IsCompleted).IsFalse();
 
         secondSignal.NotifyChanged();
@@ -114,8 +109,6 @@ public class CfgChangeSignalTests
 
         var waitTask = cts.Token.AwaitCancellationAsync();
 
-        await Task.Delay(100, cts.Token);
-
         await Assert.That(waitTask.IsCompleted).IsFalse();
 
         await cts.CancelAsync();
@@ -124,5 +117,35 @@ public class CfgChangeSignalTests
 
         await Assert.That(waitTask.IsCompleted).IsTrue();
         await Assert.That(waitTask.IsCanceled).IsTrue();
+    }
+
+    [Test]
+    public async Task CfgChangeSignal_WaitForChangeAsync_WithAlreadyCancelledToken_CancelsImmediately()
+    {
+        var signal = new CfgChangeSignal();
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var waitTask = signal.WaitForChangeAsync(cts.Token).AsTask();
+
+        await Assert.That(async () => await waitTask).Throws<OperationCanceledException>();
+    }
+
+    [Test]
+    public async Task CfgChangeSignal_WaitForChangeAsync_AllowsConcurrentWaiters()
+    {
+        var signal = new CfgChangeSignal();
+
+        var waitTask1 = signal.WaitForChangeAsync().AsTask();
+        var waitTask2 = signal.WaitForChangeAsync().AsTask();
+
+        await Assert.That(waitTask1.IsCompleted).IsFalse();
+        await Assert.That(waitTask2.IsCompleted).IsFalse();
+
+        signal.NotifyChanged();
+
+        await Task.WhenAll(waitTask1, waitTask2);
+        await Assert.That(waitTask1.IsCompletedSuccessfully).IsTrue();
+        await Assert.That(waitTask2.IsCompletedSuccessfully).IsTrue();
     }
 }
