@@ -3,9 +3,17 @@ namespace PicoCfg;
 internal sealed class CfgChangeSignal : ICfgChangeSignal
 {
     private readonly Lock _syncRoot = new();
+    private bool _hasChanged;
     private CancellationTokenSource _cts = new();
 
-    public bool HasChanged { get; private set; }
+    public bool HasChanged
+    {
+        get
+        {
+            lock (_syncRoot)
+                return _hasChanged;
+        }
+    }
 
     public async ValueTask WaitForChangeAsync(CancellationToken ct = default)
     {
@@ -30,7 +38,7 @@ internal sealed class CfgChangeSignal : ICfgChangeSignal
     {
         lock (_syncRoot)
         {
-            if (HasChanged)
+            if (_hasChanged)
                 return null;
 
             return _cts.Token.AwaitCancellationAsync(throwOnCancellation: false);
@@ -53,10 +61,10 @@ internal sealed class CfgChangeSignal : ICfgChangeSignal
     {
         lock (_syncRoot)
         {
-            if (HasChanged)
+            if (_hasChanged)
                 return null;
 
-            HasChanged = true;
+            _hasChanged = true;
             return _cts;
         }
     }

@@ -148,4 +148,30 @@ public class CfgChangeSignalTests
         await Assert.That(waitTask1.IsCompletedSuccessfully).IsTrue();
         await Assert.That(waitTask2.IsCompletedSuccessfully).IsTrue();
     }
+
+    [Test]
+    public async Task CfgChangeSignal_HasChanged_BecomesVisibleToConcurrentPollingReader()
+    {
+        var signal = new CfgChangeSignal();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var pollingTask = Task.Run(async () =>
+        {
+            started.TrySetResult();
+            for (var i = 0; i < 10_000; i++)
+            {
+                if (signal.HasChanged)
+                    return true;
+
+                await Task.Yield();
+            }
+
+            return false;
+        });
+
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        signal.NotifyChanged();
+
+        await Assert.That(await pollingTask.WaitAsync(TimeSpan.FromSeconds(5))).IsTrue();
+    }
 }
