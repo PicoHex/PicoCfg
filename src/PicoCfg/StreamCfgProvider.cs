@@ -32,6 +32,8 @@ internal sealed class StreamCfgProvider : ICfgProvider
 
     public async ValueTask<bool> ReloadAsync(CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
+
         var versionStampFactory = _versionStampFactory;
         var versionStamp = versionStampFactory?.Invoke();
         if (versionStampFactory is not null)
@@ -42,6 +44,8 @@ internal sealed class StreamCfgProvider : ICfgProvider
                     return false;
             }
         }
+
+        ct.ThrowIfCancellationRequested();
 
         var stream = _streamFactory()
             ?? throw new InvalidOperationException("The stream factory returned null.");

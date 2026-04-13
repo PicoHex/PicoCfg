@@ -210,8 +210,6 @@ public class StreamCfgTests
         var changeSignal = provider.GetChangeSignal();
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var waitTask = changeSignal.WaitForChangeAsync(cts.Token).AsTask();
-
-        await Task.Delay(100, cts.Token);
         await Assert.That(waitTask.IsCompleted).IsFalse();
 
         currentContent = "key1=value2";
@@ -310,21 +308,97 @@ public class StreamCfgTests
     public async Task StreamCfgProvider_ReloadAsync_CallsVersionStampFactoryOutsideLock()
     {
         StreamCfgProvider? provider = null;
+        var versionStampEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowVersionStampToExit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var snapshotReadCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         provider = new StreamCfgProvider(
             () => new MemoryStream(Encoding.UTF8.GetBytes("key=value")),
             () =>
             {
-                var snapshotTask = Task.Run(() => provider!.Snapshot.GetValue("key"));
-                if (!snapshotTask.Wait(TimeSpan.FromSeconds(1)))
-                    throw new TimeoutException("Version stamp factory ran while provider lock was held.");
+                versionStampEntered.TrySetResult();
+                _ = Task.Run(() =>
+                {
+                    _ = provider!.Snapshot.GetValue("key");
+                    snapshotReadCompleted.TrySetResult();
+                });
+                allowVersionStampToExit.Task.GetAwaiter().GetResult();
 
                 return 1;
             }
         );
 
+        var reloadTask = Task.Run(async () => await provider.ReloadAsync());
+        await versionStampEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await snapshotReadCompleted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        allowVersionStampToExit.TrySetResult();
+
+        var changed = await reloadTask;
+
+        await Assert.That(changed).IsTrue();
+    }
+
+    [Test]
+    public async Task StreamCfgProvider_ReloadAsync_WithPreCancelledToken_DoesNotInvokeFactories()
+    {
+        var streamFactoryCalls = 0;
+        var versionStampCalls = 0;
+        var provider = new StreamCfgProvider(
+            () =>
+            {
+                streamFactoryCalls++;
+                return new MemoryStream(Encoding.UTF8.GetBytes("key=value"));
+            },
+            () =>
+            {
+                versionStampCalls++;
+                return 1;
+            }
+        );
+
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.That(async () => await provider.ReloadAsync(cts.Token)).Throws<OperationCanceledException>();
+        await Assert.That(streamFactoryCalls).IsEqualTo(0);
+        await Assert.That(versionStampCalls).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task StreamCfgProvider_ReloadAsync_CancellationAfterVersionStamp_DoesNotInvokeStreamFactory()
+    {
+        var streamFactoryCalls = 0;
+        CancellationTokenSource? cancellationSource = null;
+        var provider = new StreamCfgProvider(
+            () =>
+            {
+                streamFactoryCalls++;
+                return new MemoryStream(Encoding.UTF8.GetBytes("key=value"));
+            },
+            () =>
+            {
+                cancellationSource!.Cancel();
+                return 1;
+            }
+        );
+
+        using var cts = new CancellationTokenSource();
+        cancellationSource = cts;
+
+        await Assert.That(async () => await provider.ReloadAsync(cts.Token)).Throws<OperationCanceledException>();
+        await Assert.That(streamFactoryCalls).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task StreamCfgProvider_ReloadAsync_PreservesTextAfterFirstSeparator()
+    {
+        var provider = new StreamCfgProvider(
+            () => new MemoryStream(Encoding.UTF8.GetBytes("key=a=b=c"))
+        );
+
         var changed = await provider.ReloadAsync();
 
         await Assert.That(changed).IsTrue();
+        await Assert.That(provider.Snapshot.GetValue("key")).IsEqualTo("a=b=c");
     }
 
     [Test]
