@@ -17,6 +17,7 @@ public static class CfgBuilderExtensions
         /// <summary>
         /// Adds inline text content as a stream-based source.
         /// The content is parsed as line-based <c>key=value</c> text.
+        /// Each reload recreates a stream so inline text stays on the same parsing path as stream-based sources.
         /// </summary>
         public CfgBuilder Add(string configContent,
             Encoding? encoding = null,
