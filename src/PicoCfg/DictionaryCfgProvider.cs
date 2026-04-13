@@ -36,6 +36,8 @@ internal sealed class DictionaryCfgProvider : ICfgProvider
                 return ValueTask.FromResult(false);
         }
 
+        ct.ThrowIfCancellationRequested();
+
         var newData = CreateSnapshotData(ct);
 
         var fingerprint = ConfigDataComparer.ComputeFingerprint(newData);

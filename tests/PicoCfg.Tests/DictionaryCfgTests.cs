@@ -27,6 +27,30 @@ public class DictionaryCfgTests
     }
 
     [Test]
+    public async Task DictionaryCfgProvider_ReloadAsync_WithNullVersionStampOnFirstLoad_DoesNotSkipInitialLoad()
+    {
+        var calls = 0;
+        var provider = new DictionaryCfgProvider(
+            () =>
+            {
+                calls++;
+                return new Dictionary<string, string> { ["key"] = "value" };
+            },
+            () => null
+        );
+
+        var initialChanged = await provider.ReloadAsync();
+        var initialSnapshot = provider.Snapshot;
+        var changed = await provider.ReloadAsync();
+
+        await Assert.That(initialChanged).IsTrue();
+        await Assert.That(changed).IsFalse();
+        await Assert.That(calls).IsEqualTo(1);
+        await Assert.That(provider.Snapshot).IsSameReferenceAs(initialSnapshot);
+        await Assert.That(provider.Snapshot.GetValue("key")).IsEqualTo("value");
+    }
+
+    [Test]
     public async Task DictionaryCfgSource_WithVersionStampUnchanged_SkipsReloadWork()
     {
         var calls = 0;
@@ -47,6 +71,28 @@ public class DictionaryCfgTests
         await Assert.That(changed).IsFalse();
         await Assert.That(calls).IsEqualTo(1);
         await Assert.That(provider.Snapshot.GetValue("key")).IsEqualTo("before");
+    }
+
+    [Test]
+    public async Task DictionaryCfgSource_OpenAsync_WithNullVersionStamp_LoadsInitialSnapshot()
+    {
+        var calls = 0;
+        var source = new DictionaryCfgSource(
+            () =>
+            {
+                calls++;
+                return new Dictionary<string, string> { ["key"] = "value" };
+            },
+            () => null
+        );
+
+        var provider = await source.OpenAsync();
+        var snapshot = provider.Snapshot;
+        var changed = await provider.ReloadAsync();
+
+        await Assert.That(snapshot.GetValue("key")).IsEqualTo("value");
+        await Assert.That(changed).IsFalse();
+        await Assert.That(calls).IsEqualTo(1);
     }
 
     [Test]
@@ -174,6 +220,32 @@ public class DictionaryCfgTests
         await Assert.That(async () => await provider.ReloadAsync(cts.Token)).Throws<OperationCanceledException>();
         await Assert.That(dataFactoryCalls).IsEqualTo(0);
         await Assert.That(versionStampCalls).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task DictionaryCfgProvider_ReloadAsync_CancellationAfterVersionStamp_DoesNotInvokeDataFactory()
+    {
+        var dataFactoryCalls = 0;
+        CancellationTokenSource? cancellationSource = null;
+        var provider = new DictionaryCfgProvider(
+            () =>
+            {
+                dataFactoryCalls++;
+                return [];
+            },
+            () =>
+            {
+                cancellationSource!.Cancel();
+                return 1;
+            }
+        );
+
+        using var cts = new CancellationTokenSource();
+        cancellationSource = cts;
+
+        await Assert.That(async () => await provider.ReloadAsync(cts.Token)).Throws<OperationCanceledException>();
+        await Assert.That(dataFactoryCalls).IsEqualTo(0);
+        await Assert.That(provider.Snapshot).IsSameReferenceAs(CfgSnapshot.Empty);
     }
 
     [Test]

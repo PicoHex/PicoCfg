@@ -7,6 +7,7 @@ namespace PicoCfg;
 internal sealed class CfgProviderState
 {
     private readonly Lock _syncRoot = new();
+    private bool _hasVersionStamp;
     private object? _versionStamp;
     private CfgSnapshot _snapshot = CfgSnapshot.Empty;
     private CfgChangeSignal _changeSignal = new();
@@ -29,7 +30,7 @@ internal sealed class CfgProviderState
     public bool IsVersionStampUnchanged(object? versionStamp)
     {
         lock (_syncRoot)
-            return Equals(_versionStamp, versionStamp);
+            return _hasVersionStamp && Equals(_versionStamp, versionStamp);
     }
 
     public bool PublishIfChanged(
@@ -41,6 +42,7 @@ internal sealed class CfgProviderState
         CfgChangeSignal? changedSignal = null;
         lock (_syncRoot)
         {
+            _hasVersionStamp = true;
             _versionStamp = versionStamp;
 
             if (ConfigDataComparer.Equals(_snapshot, values, fingerprint))
