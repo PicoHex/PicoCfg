@@ -2,47 +2,63 @@ namespace PicoCfg;
 
 internal sealed class CfgChangeSignal : ICfgChangeSignal
 {
-    private readonly Lock _syncLock = new();
+    private readonly Lock _syncRoot = new();
     private CancellationTokenSource _cts = new();
 
     public bool HasChanged { get; private set; }
 
     public async ValueTask WaitForChangeAsync(CancellationToken ct = default)
     {
-        Task signalTask;
-        lock (_syncLock)
+        var signalTask = GetSignalTask();
+        if (signalTask is null)
+            return;
+
+        await WaitForSignalOrCancellationAsync(signalTask, ct);
+    }
+
+    internal void NotifyChanged()
+    {
+        var ctsToCancel = TryMarkChanged();
+        if (ctsToCancel is null)
+            return;
+
+        ctsToCancel.Cancel();
+        ctsToCancel.Dispose();
+    }
+
+    private Task? GetSignalTask()
+    {
+        lock (_syncRoot)
         {
             if (HasChanged)
-                return;
+                return null;
 
-            signalTask = _cts.Token.AwaitCancellationAsync(throwOnCancellation: false);
+            return _cts.Token.AwaitCancellationAsync(throwOnCancellation: false);
         }
+    }
 
+    private static async ValueTask WaitForSignalOrCancellationAsync(Task signalTask, CancellationToken ct)
+    {
         if (!ct.CanBeCanceled)
         {
             await signalTask;
             return;
         }
 
-        var cancellationTask = ct.AwaitCancellationAsync();
-        var completedTask = await Task.WhenAny(signalTask, cancellationTask);
+        var completedTask = await Task.WhenAny(signalTask, ct.AwaitCancellationAsync());
         await completedTask;
     }
 
-    internal void NotifyChanged()
+    private CancellationTokenSource? TryMarkChanged()
     {
-        CancellationTokenSource? ctsToCancel = null;
-        lock (_syncLock)
+        lock (_syncRoot)
         {
             if (HasChanged)
-                return;
+                return null;
 
             HasChanged = true;
-            ctsToCancel = _cts;
+            return _cts;
         }
-
-        ctsToCancel.Cancel();
-        ctsToCancel.Dispose();
     }
 }
 
