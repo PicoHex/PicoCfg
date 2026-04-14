@@ -34,8 +34,23 @@ internal sealed class CfgRoot : ICfgRoot
         await _reloadGate.WaitAsync(ct);
         try
         {
-            var providerReloadResults = await ReloadProvidersAsync(ct);
-            return TryPublishReloadedSnapshot(providerReloadResults);
+            ExceptionDispatchInfo? reloadFailure = null;
+            try
+            {
+                await ReloadProvidersAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                reloadFailure = ExceptionDispatchInfo.Capture(ex);
+            }
+
+            // Providers publish their own snapshots first. Re-sample the observed provider sequence after
+            // all reload tasks settle so a sibling fault/cancellation does not leave the root behind.
+            var observedProviderSnapshots = ObserveProviderSnapshots();
+            var changed = TryPublishObservedProviderSnapshots(observedProviderSnapshots);
+
+            reloadFailure?.Throw();
+            return changed;
         }
         finally
         {
@@ -95,44 +110,56 @@ internal sealed class CfgRoot : ICfgRoot
         }
     }
 
-    private async Task<bool[]> ReloadProvidersAsync(CancellationToken ct)
+    private async Task ReloadProvidersAsync(CancellationToken ct)
     {
-        var reloadTasks = new Task<bool>[_providers.Count];
-        for (var i = 0; i < _providers.Count; i++)
-            reloadTasks[i] = _providers[i].ReloadAsync(ct).AsTask();
+        var reloadTasks = new List<Task>(_providers.Count);
+        ExceptionDispatchInfo? creationFailure = null;
 
-        return await Task.WhenAll(reloadTasks);
+        for (var i = 0; i < _providers.Count; i++)
+        {
+            try
+            {
+                reloadTasks.Add(_providers[i].ReloadAsync(ct).AsTask());
+            }
+            catch (Exception ex)
+            {
+                creationFailure = ExceptionDispatchInfo.Capture(ex);
+                break;
+            }
+        }
+
+        try
+        {
+            await Task.WhenAll(reloadTasks);
+        }
+        catch when (creationFailure is not null)
+        {
+            // Preserve the original synchronous creation failure after already-started reloads settle.
+        }
+
+        creationFailure?.Throw();
     }
 
-    private bool TryPublishReloadedSnapshot(bool[] providerReloadResults)
+    private ICfgSnapshot[] ObserveProviderSnapshots()
     {
-        if (!AnyProviderReloaded(providerReloadResults))
-            return false;
+        var observedProviderSnapshots = new ICfgSnapshot[_providers.Count];
+        for (var i = 0; i < _providers.Count; i++)
+            observedProviderSnapshots[i] = _providers[i].Snapshot;
 
-        var reloadedProviderSnapshots = CreateReloadedProviderSnapshots(providerReloadResults);
+        return observedProviderSnapshots;
+    }
 
+    private bool TryPublishObservedProviderSnapshots(ICfgSnapshot[] observedProviderSnapshots)
+    {
         // Root publication is based on provider snapshot identity rather than just the final visible values.
         // A provider can publish a new snapshot that stays overridden by later providers, and callers should
         // still observe a fresh root snapshot/change signal for that publication.
-        if (!ProviderSnapshotSequenceChanged(_providerSnapshots, reloadedProviderSnapshots))
+        if (!ProviderSnapshotSequenceChanged(_providerSnapshots, observedProviderSnapshots))
             return false;
 
         // Compose once on the reload path so steady-state reads stay on the current published snapshot.
-        var publishedSnapshot = CfgSnapshotComposer.CreateSnapshot(reloadedProviderSnapshots);
-        return PublishRootSnapshot(reloadedProviderSnapshots, publishedSnapshot);
-    }
-
-    private ICfgSnapshot[] CreateReloadedProviderSnapshots(IReadOnlyList<bool> providerReloadResults)
-    {
-        var reloadedProviderSnapshots = (ICfgSnapshot[])_providerSnapshots.Clone();
-
-        for (var i = 0; i < providerReloadResults.Count; i++)
-        {
-            if (providerReloadResults[i])
-                reloadedProviderSnapshots[i] = _providers[i].Snapshot;
-        }
-
-        return reloadedProviderSnapshots;
+        var publishedSnapshot = CfgSnapshotComposer.CreateSnapshot(observedProviderSnapshots);
+        return PublishRootSnapshot(observedProviderSnapshots, publishedSnapshot);
     }
 
     private bool PublishRootSnapshot(ICfgSnapshot[] providerSnapshots, ICfgSnapshot snapshot)
@@ -148,17 +175,6 @@ internal sealed class CfgRoot : ICfgRoot
 
         changedSignal.NotifyChanged();
         return true;
-    }
-
-    private static bool AnyProviderReloaded(IReadOnlyList<bool> providerReloadResults)
-    {
-        for (var i = 0; i < providerReloadResults.Count; i++)
-        {
-            if (providerReloadResults[i])
-                return true;
-        }
-
-        return false;
     }
 
     private static bool ProviderSnapshotSequenceChanged(
