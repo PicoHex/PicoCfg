@@ -62,11 +62,13 @@ Characters such as `:` and `.` are part of the key name; PicoCfg does not interp
 
 `ICfgRoot.Snapshot` exposes the currently published read-only snapshot.
 If reload does not publish a new snapshot, the same snapshot instance is retained.
+Already obtained snapshots remain usable after root disposal.
 
 ### Lifetime
 
 The built root owns the opened providers and implements `IAsyncDisposable`.
 Prefer `await using` for normal usage.
+Disposal releases owned providers, but it does not invalidate snapshots or change signals that were already obtained.
 
 ## Source Types
 
@@ -116,6 +118,16 @@ For example, `Key = a=b=c` produces key `Key` and value `a=b=c`.
 - `ReloadAsync()` returns `false` when the current snapshot instance is retained
 - `GetChangeSignal()` returns the one-shot signal for the current published version
 - after a published change, fetch a new signal for later waits
+
+If a reload throws or is canceled after some providers have already published new snapshot versions,
+the root may first publish the observed composed snapshot for those settled provider versions and then
+rethrow the failure. After a failed reload, re-sample `Snapshot` and fetch a new change signal if you
+need to observe the latest published state.
+
+When all composed provider snapshots are PicoCfg's native snapshot type, the root flattens them into a
+single dictionary-backed snapshot for steady-state reads. If any provider supplies a custom
+`ICfgSnapshot`, the root preserves that custom lookup behavior and falls back to read-time provider
+scanning instead of flattening away the custom semantics.
 
 ## Custom Sources
 

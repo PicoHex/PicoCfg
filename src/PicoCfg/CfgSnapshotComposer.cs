@@ -68,6 +68,8 @@ internal static class CfgSnapshotComposer
     {
         // Arbitrary ICfgSnapshot implementations can have custom lookup behavior, so fallback preserves
         // provider order and resolves values at read time instead of flattening away that behavior.
+        // This keeps custom semantics intact, but steady-state reads become a provider scan rather than
+        // the single dictionary lookup used by fully native composed snapshots.
         return new CompositeCfgSnapshot(providerSnapshots);
     }
 
