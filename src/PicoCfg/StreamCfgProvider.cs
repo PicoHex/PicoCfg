@@ -22,22 +22,11 @@ internal sealed class StreamCfgProvider : ICfgProvider
 
     public async ValueTask<bool> ReloadAsync(CancellationToken ct = default)
     {
-        ct.ThrowIfCancellationRequested();
-
-        var versionStampFactory = _versionStampFactory;
-        object? versionStamp = null;
-        if (versionStampFactory is not null)
-        {
-            versionStamp = versionStampFactory();
-            if (_state.IsVersionStampUnchanged(versionStamp))
-                return false;
-        }
-
-        ct.ThrowIfCancellationRequested();
+        if (!_state.TryBeginReload(_versionStampFactory, ct, out var versionStamp))
+            return false;
 
         var newData = await CreateSnapshotDataAsync(ct);
-        var fingerprint = ConfigDataComparer.ComputeFingerprint(newData);
-        return _state.PublishIfChanged(newData, fingerprint, versionStamp);
+        return _state.PublishIfChanged(newData, versionStamp);
     }
 
     public ICfgChangeSignal GetChangeSignal() => _state.GetChangeSignal();

@@ -27,18 +27,29 @@ internal sealed class CfgProviderState
             return _changeSignal;
     }
 
-    public bool IsVersionStampUnchanged(object? versionStamp)
-    {
-        lock (_syncRoot)
-            return _hasVersionStamp && Equals(_versionStamp, versionStamp);
-    }
-
-    public bool PublishIfChanged(
-        IReadOnlyDictionary<string, string> values,
-        ulong fingerprint,
-        object? versionStamp
+    public bool TryBeginReload(
+        Func<object?>? versionStampFactory,
+        CancellationToken ct,
+        out object? versionStamp
     )
     {
+        ct.ThrowIfCancellationRequested();
+        versionStamp = null;
+
+        if (versionStampFactory is not null)
+        {
+            versionStamp = versionStampFactory();
+            if (IsVersionStampUnchanged(versionStamp))
+                return false;
+        }
+
+        ct.ThrowIfCancellationRequested();
+        return true;
+    }
+
+    public bool PublishIfChanged(IReadOnlyDictionary<string, string> values, object? versionStamp)
+    {
+        var fingerprint = ConfigDataComparer.ComputeFingerprint(values);
         CfgChangeSignal? changedSignal = null;
         lock (_syncRoot)
         {
@@ -55,5 +66,11 @@ internal sealed class CfgProviderState
 
         changedSignal.NotifyChanged();
         return true;
+    }
+
+    private bool IsVersionStampUnchanged(object? versionStamp)
+    {
+        lock (_syncRoot)
+            return _hasVersionStamp && Equals(_versionStamp, versionStamp);
     }
 }
