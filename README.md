@@ -124,6 +124,11 @@ the root may first publish the observed composed snapshot for those settled prov
 rethrow the failure. After a failed reload, re-sample `Snapshot` and fetch a new change signal if you
 need to observe the latest published state.
 
+When a built-in source uses `versionStampFactory`, the first completed materialization establishes an
+authoritative stamp baseline. Later equal stamps, including repeated `null`, skip source work entirely.
+A changed stamp forces the source to reread or reparse, but the current snapshot may still be retained
+when the materialized content is unchanged.
+
 When all composed provider snapshots are PicoCfg's native snapshot type, the root flattens them into a
 single dictionary-backed snapshot for steady-state reads. If any provider supplies a custom
 `ICfgSnapshot`, the root preserves that custom lookup behavior and falls back to read-time provider

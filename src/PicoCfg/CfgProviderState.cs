@@ -2,13 +2,13 @@ namespace PicoCfg;
 
 /// <summary>
 /// Tracks the published provider snapshot, its current one-shot change signal, and the optional version stamp
-/// used to short-circuit reload work before re-materializing source data.
+/// used as the provider's authoritative reload baseline before re-materializing source data.
 /// </summary>
 internal sealed class CfgProviderState
 {
     private readonly Lock _syncRoot = new();
-    private bool _hasVersionStamp;
-    private object? _versionStamp;
+    private bool _hasAcceptedVersionStamp;
+    private object? _acceptedVersionStamp;
     private CfgSnapshot _snapshot = CfgSnapshot.Empty;
     private CfgChangeSignal _changeSignal = new();
 
@@ -30,16 +30,16 @@ internal sealed class CfgProviderState
     public bool TryBeginReload(
         Func<object?>? versionStampFactory,
         CancellationToken ct,
-        out object? versionStamp
+        out object? candidateVersionStamp
     )
     {
         ct.ThrowIfCancellationRequested();
-        versionStamp = null;
+        candidateVersionStamp = null;
 
         if (versionStampFactory is not null)
         {
-            versionStamp = versionStampFactory();
-            if (IsVersionStampUnchanged(versionStamp))
+            candidateVersionStamp = versionStampFactory();
+            if (IsAcceptedVersionStampUnchanged(candidateVersionStamp))
                 return false;
         }
 
@@ -47,14 +47,16 @@ internal sealed class CfgProviderState
         return true;
     }
 
-    public bool PublishIfChanged(IReadOnlyDictionary<string, string> values, object? versionStamp)
+    public bool PublishIfChanged(IReadOnlyDictionary<string, string> values, object? candidateVersionStamp)
     {
         var fingerprint = ConfigDataComparer.ComputeFingerprint(values);
         CfgChangeSignal? changedSignal = null;
         lock (_syncRoot)
         {
-            _hasVersionStamp = true;
-            _versionStamp = versionStamp;
+            // A completed materialization attempt advances the authoritative baseline even when the visible
+            // snapshot does not publish, so repeated equal stamps can skip later source work.
+            _hasAcceptedVersionStamp = true;
+            _acceptedVersionStamp = candidateVersionStamp;
 
             if (ConfigDataComparer.Equals(_snapshot, values, fingerprint))
                 return false;
@@ -68,9 +70,9 @@ internal sealed class CfgProviderState
         return true;
     }
 
-    private bool IsVersionStampUnchanged(object? versionStamp)
+    private bool IsAcceptedVersionStampUnchanged(object? candidateVersionStamp)
     {
         lock (_syncRoot)
-            return _hasVersionStamp && Equals(_versionStamp, versionStamp);
+            return _hasAcceptedVersionStamp && Equals(_acceptedVersionStamp, candidateVersionStamp);
     }
 }

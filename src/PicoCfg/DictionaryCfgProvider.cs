@@ -25,11 +25,11 @@ internal sealed class DictionaryCfgProvider : ICfgProvider
 
     public ValueTask<bool> ReloadAsync(CancellationToken ct = default)
     {
-        if (!_state.TryBeginReload(_versionStampFactory, ct, out var versionStamp))
+        if (!_state.TryBeginReload(_versionStampFactory, ct, out var candidateVersionStamp))
             return ValueTask.FromResult(false);
 
         var newData = CreateSnapshotData(ct);
-        return ValueTask.FromResult(_state.PublishIfChanged(newData, versionStamp));
+        return ValueTask.FromResult(_state.PublishIfChanged(newData, candidateVersionStamp));
     }
 
     public ICfgChangeSignal GetChangeSignal() => _state.GetChangeSignal();
