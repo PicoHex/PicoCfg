@@ -34,23 +34,10 @@ internal sealed class CfgRoot : ICfgRoot
         await _reloadGate.WaitAsync(ct);
         try
         {
-            ExceptionDispatchInfo? reloadFailure = null;
-            try
-            {
-                await ReloadProvidersAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                reloadFailure = ExceptionDispatchInfo.Capture(ex);
-            }
-
-            // Providers publish their own snapshots first. Re-sample the observed provider sequence after
-            // all reload tasks settle so a sibling fault/cancellation does not leave the root behind.
+            var reloadFailure = await TryReloadProvidersAsync(ct);
             var observedProviderSnapshots = ObserveProviderSnapshots();
             var changed = TryPublishObservedProviderSnapshots(observedProviderSnapshots);
-
-            reloadFailure?.Throw();
-            return changed;
+            return CompleteReload(changed, reloadFailure);
         }
         finally
         {
@@ -110,7 +97,7 @@ internal sealed class CfgRoot : ICfgRoot
         }
     }
 
-    private async Task ReloadProvidersAsync(CancellationToken ct)
+    private async Task<ExceptionDispatchInfo?> TryReloadProvidersAsync(CancellationToken ct)
     {
         var reloadTasks = new List<Task>(_providers.Count);
         ExceptionDispatchInfo? creationFailure = null;
@@ -128,20 +115,13 @@ internal sealed class CfgRoot : ICfgRoot
             }
         }
 
-        try
-        {
-            await Task.WhenAll(reloadTasks);
-        }
-        catch when (creationFailure is not null)
-        {
-            // Preserve the original synchronous creation failure after already-started reloads settle.
-        }
-
-        creationFailure?.Throw();
+        return await ObserveReloadCompletionAsync(reloadTasks, creationFailure);
     }
 
     private ICfgSnapshot[] ObserveProviderSnapshots()
     {
+        // Providers publish their own snapshots first. Re-sample the observed provider sequence after
+        // all reload tasks settle so a sibling fault/cancellation does not leave the root behind.
         var observedProviderSnapshots = new ICfgSnapshot[_providers.Count];
         for (var i = 0; i < _providers.Count; i++)
             observedProviderSnapshots[i] = _providers[i].Snapshot;
@@ -160,6 +140,33 @@ internal sealed class CfgRoot : ICfgRoot
         // Compose once on the reload path so steady-state reads stay on the current published snapshot.
         var publishedSnapshot = CfgSnapshotComposer.CreateSnapshot(observedProviderSnapshots);
         return PublishRootSnapshot(observedProviderSnapshots, publishedSnapshot);
+    }
+
+    private static async Task<ExceptionDispatchInfo?> ObserveReloadCompletionAsync(
+        IReadOnlyList<Task> reloadTasks,
+        ExceptionDispatchInfo? creationFailure
+    )
+    {
+        try
+        {
+            await Task.WhenAll(reloadTasks);
+        }
+        catch when (creationFailure is not null)
+        {
+            // Preserve the original synchronous creation failure after already-started reloads settle.
+        }
+        catch (Exception ex)
+        {
+            return ExceptionDispatchInfo.Capture(ex);
+        }
+
+        return creationFailure;
+    }
+
+    private static bool CompleteReload(bool changed, ExceptionDispatchInfo? reloadFailure)
+    {
+        reloadFailure?.Throw();
+        return changed;
     }
 
     private bool PublishRootSnapshot(ICfgSnapshot[] providerSnapshots, ICfgSnapshot snapshot)
