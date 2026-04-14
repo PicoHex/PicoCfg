@@ -86,6 +86,8 @@ public class CfgRootTests
         await Assert.That(root.Snapshot).IsNotSameReferenceAs(originalSnapshot);
         await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("after");
         await Assert.That(changeSignal.HasChanged).IsTrue();
+        await Assert.That(root.GetChangeSignal()).IsNotSameReferenceAs(changeSignal);
+        await Assert.That(root.GetChangeSignal().HasChanged).IsFalse();
         await Assert.That(originalSnapshot.GetValue("key")).IsEqualTo("before");
     }
 
@@ -253,6 +255,8 @@ public class CfgRootTests
         await Assert.That(root.Snapshot).IsNotSameReferenceAs(originalSnapshot);
         await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("after");
         await Assert.That(changeSignal.HasChanged).IsTrue();
+        await Assert.That(root.GetChangeSignal()).IsNotSameReferenceAs(changeSignal);
+        await Assert.That(root.GetChangeSignal().HasChanged).IsFalse();
         await Assert.That(originalSnapshot.GetValue("key")).IsEqualTo("before");
     }
 
@@ -274,6 +278,22 @@ public class CfgRootTests
         await Assert.That(root.Snapshot).IsNotSameReferenceAs(originalSnapshot);
         await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("after");
         await Assert.That(originalSnapshot.GetValue("key")).IsEqualTo("before");
+    }
+
+    [Test]
+    public async Task ReloadAsync_WhenLaterProviderThrowsSynchronously_RethrowsCapturedFailureAfterStartedFaultsSettle()
+    {
+        var expected = new InvalidOperationException("Synchronous start failure.");
+        var provider1 = new DeferredFailingProvider(new ApplicationException("Deferred reload failure."));
+        var provider2 = new ThrowingReloadProvider(expected);
+        var root = new CfgRoot([provider1, provider2]);
+
+        var reloadTask = root.ReloadAsync().AsTask();
+        await provider1.WaitForReloadStartedAsync();
+        provider1.FailReload();
+
+        var thrown = await Assert.That(async () => await reloadTask).Throws<InvalidOperationException>();
+        await Assert.That(thrown).IsSameReferenceAs(expected);
     }
 
     [Test]
@@ -525,6 +545,40 @@ public class CfgRootTests
         public Task WaitForReloadStartedAsync() => _entered.Task;
 
         public void CompleteReload() => _release.TrySetResult();
+    }
+
+    private sealed class DeferredFailingProvider(Exception failure) : ICfgProvider
+    {
+        private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ICfgSnapshot Snapshot { get; } = new MockSnapshot(new Dictionary<string, string>());
+
+        public async ValueTask<bool> ReloadAsync(CancellationToken ct = default)
+        {
+            _entered.TrySetResult();
+            await _release.Task.WaitAsync(ct);
+            return await ValueTask.FromException<bool>(failure);
+        }
+
+        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public Task WaitForReloadStartedAsync() => _entered.Task;
+
+        public void FailReload() => _release.TrySetResult();
+    }
+
+    private sealed class ThrowingReloadProvider(Exception failure) : ICfgProvider
+    {
+        public ICfgSnapshot Snapshot { get; } = new MockSnapshot(new Dictionary<string, string>());
+
+        public ValueTask<bool> ReloadAsync(CancellationToken ct = default) => throw failure;
+
+        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private sealed class StaticProvider(ICfgSnapshot snapshot) : ICfgProvider
