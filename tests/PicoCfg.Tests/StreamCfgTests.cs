@@ -265,6 +265,60 @@ public class StreamCfgTests
     }
 
     [Test]
+    public async Task StreamCfgProvider_ReloadAsync_WithAcceptedNullStamp_TreatsRepeatedNullAsAuthoritativeShortcut()
+    {
+        var calls = 0;
+        var content = "key1=value1";
+        var provider = new StreamCfgProvider(
+            () =>
+            {
+                calls++;
+                return new MemoryStream(Encoding.UTF8.GetBytes(content));
+            },
+            () => null
+        );
+
+        var initialChanged = await provider.ReloadAsync();
+        content = "key1=value2";
+        var changed = await provider.ReloadAsync();
+
+        await Assert.That(initialChanged).IsTrue();
+        await Assert.That(changed).IsFalse();
+        await Assert.That(calls).IsEqualTo(1);
+        await Assert.That(provider.Snapshot.GetValue("key1")).IsEqualTo("value1");
+    }
+
+    [Test]
+    public async Task StreamCfgProvider_ReloadAsync_WithChangedStampAndSameContent_UpdatesAuthorityBaseline()
+    {
+        var calls = 0;
+        var stamp = 1;
+        var content = "key1=value1";
+        var provider = new StreamCfgProvider(
+            () =>
+            {
+                calls++;
+                return new MemoryStream(Encoding.UTF8.GetBytes(content));
+            },
+            () => stamp
+        );
+
+        var initialChanged = await provider.ReloadAsync();
+        var originalSnapshot = provider.Snapshot;
+        stamp = 2;
+        var unchanged = await provider.ReloadAsync();
+        content = "key1=value2";
+        var laterShortcut = await provider.ReloadAsync();
+
+        await Assert.That(initialChanged).IsTrue();
+        await Assert.That(unchanged).IsFalse();
+        await Assert.That(laterShortcut).IsFalse();
+        await Assert.That(calls).IsEqualTo(2);
+        await Assert.That(provider.Snapshot).IsSameReferenceAs(originalSnapshot);
+        await Assert.That(provider.Snapshot.GetValue("key1")).IsEqualTo("value1");
+    }
+
+    [Test]
     public async Task StreamCfgProvider_ReloadAsync_WithChangedVersionStampAndChangedContent_PublishesNewSnapshot()
     {
         var stamp = 1;
