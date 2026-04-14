@@ -34,9 +34,9 @@ internal sealed class CfgRoot : ICfgRoot
         await _reloadGate.WaitAsync(ct);
         try
         {
-            var reloadState = await ReloadProvidersAndObserveStateAsync(ct);
-            var changed = PublishObservedRootState(reloadState.ObservedProviderSnapshots);
-            return CompleteReload(changed, reloadState.ReloadFailure);
+            var reloadState = await CreateReloadStateAsync(ct);
+            PublishReloadState(reloadState);
+            return CompleteReload(reloadState);
         }
         finally
         {
@@ -96,11 +96,13 @@ internal sealed class CfgRoot : ICfgRoot
         }
     }
 
-    private async Task<ReloadObservation> ReloadProvidersAndObserveStateAsync(CancellationToken ct)
+    private async Task<ReloadState> CreateReloadStateAsync(CancellationToken ct)
     {
         var reloadRun = StartProviderReloads(ct);
         var reloadFailure = await ObserveReloadCompletionAsync(reloadRun.Tasks, reloadRun.CreationFailure);
-        return new ReloadObservation(ObserveProviderSnapshots(), reloadFailure);
+        var observedProviderSnapshots = ObserveProviderSnapshots();
+        var publishedSnapshot = TryComposePublishedSnapshot(observedProviderSnapshots);
+        return new ReloadState(observedProviderSnapshots, publishedSnapshot, reloadFailure);
     }
 
     private ReloadRun StartProviderReloads(CancellationToken ct)
@@ -135,17 +137,15 @@ internal sealed class CfgRoot : ICfgRoot
         return observedProviderSnapshots;
     }
 
-    private bool PublishObservedRootState(ICfgSnapshot[] observedProviderSnapshots)
+    private void PublishReloadState(ReloadState reloadState)
     {
         // Root publication is based on provider snapshot identity rather than just the final visible values.
         // A provider can publish a new snapshot that stays overridden by later providers, and callers should
         // still observe a fresh root snapshot/change signal for that publication.
-        if (!ProviderSnapshotSequenceChanged(_providerSnapshots, observedProviderSnapshots))
-            return false;
+        if (reloadState.PublishedSnapshot is null)
+            return;
 
-        // Compose once on the reload path so steady-state reads stay on the current published snapshot.
-        var publishedSnapshot = CfgSnapshotComposer.CreateSnapshot(observedProviderSnapshots);
-        return PublishRootSnapshot(observedProviderSnapshots, publishedSnapshot);
+        PublishRootSnapshot(reloadState.ObservedProviderSnapshots, reloadState.PublishedSnapshot);
     }
 
     private static async Task<ExceptionDispatchInfo?> ObserveReloadCompletionAsync(
@@ -169,10 +169,19 @@ internal sealed class CfgRoot : ICfgRoot
         return creationFailure;
     }
 
-    private static bool CompleteReload(bool changed, ExceptionDispatchInfo? reloadFailure)
+    private static bool CompleteReload(ReloadState reloadState)
     {
-        reloadFailure?.Throw();
-        return changed;
+        reloadState.ReloadFailure?.Throw();
+        return reloadState.PublishedSnapshot is not null;
+    }
+
+    private ICfgSnapshot? TryComposePublishedSnapshot(ICfgSnapshot[] observedProviderSnapshots)
+    {
+        if (!ProviderSnapshotSequenceChanged(_providerSnapshots, observedProviderSnapshots))
+            return null;
+
+        // Compose once on the reload path so steady-state reads stay on the current published snapshot.
+        return CfgSnapshotComposer.CreateSnapshot(observedProviderSnapshots);
     }
 
     private bool PublishRootSnapshot(ICfgSnapshot[] providerSnapshots, ICfgSnapshot snapshot)
@@ -197,8 +206,9 @@ internal sealed class CfgRoot : ICfgRoot
 
     private sealed record ReloadRun(IReadOnlyList<Task> Tasks, ExceptionDispatchInfo? CreationFailure);
 
-    private sealed record ReloadObservation(
+    private sealed record ReloadState(
         ICfgSnapshot[] ObservedProviderSnapshots,
+        ICfgSnapshot? PublishedSnapshot,
         ExceptionDispatchInfo? ReloadFailure
     );
 }
