@@ -83,6 +83,21 @@ public class CfgChangeSignalTests
     }
 
     [Test]
+    public async Task CfgChangeSignal_WaitForChangeAsync_AlreadyChanged_IgnoresCancelledToken()
+    {
+        var signal = new CfgChangeSignal();
+        signal.NotifyChanged();
+
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        var waitTask = signal.WaitForChangeAsync(cts.Token).AsTask();
+
+        await waitTask;
+        await Assert.That(waitTask.IsCompletedSuccessfully).IsTrue();
+    }
+
+    [Test]
     public async Task CfgChangeSignal_NewInstanceCanBeUsedForSubsequentWaits()
     {
         var firstSignal = new CfgChangeSignal();
@@ -120,6 +135,21 @@ public class CfgChangeSignalTests
     }
 
     [Test]
+    public async Task CancellationAwaitExtensions_AwaitCancellationAsync_WithThrowOnCancellationFalse_CompletesSuccessfully()
+    {
+        var cts = new CancellationTokenSource();
+
+        var waitTask = cts.Token.AwaitCancellationAsync(throwOnCancellation: false);
+
+        await Assert.That(waitTask.IsCompleted).IsFalse();
+
+        await cts.CancelAsync();
+
+        await waitTask;
+        await Assert.That(waitTask.IsCompletedSuccessfully).IsTrue();
+    }
+
+    [Test]
     public async Task CfgChangeSignal_WaitForChangeAsync_WithAlreadyCancelledToken_CancelsImmediately()
     {
         var signal = new CfgChangeSignal();
@@ -147,6 +177,27 @@ public class CfgChangeSignalTests
         await Task.WhenAll(waitTask1, waitTask2);
         await Assert.That(waitTask1.IsCompletedSuccessfully).IsTrue();
         await Assert.That(waitTask2.IsCompletedSuccessfully).IsTrue();
+    }
+
+    [Test]
+    public async Task CfgChangeSignal_WaitForChangeAsync_CancelledWaiter_DoesNotAffectLaterWaiters()
+    {
+        var signal = new CfgChangeSignal();
+        using var cts = new CancellationTokenSource();
+
+        var cancelledWaitTask = signal.WaitForChangeAsync(cts.Token).AsTask();
+        await cts.CancelAsync();
+
+        await Assert.That(async () => await cancelledWaitTask).Throws<OperationCanceledException>();
+
+        var laterWaitTask = signal.WaitForChangeAsync().AsTask();
+        await Assert.That(laterWaitTask.IsCompleted).IsFalse();
+
+        signal.NotifyChanged();
+
+        await laterWaitTask;
+        await Assert.That(laterWaitTask.IsCompletedSuccessfully).IsTrue();
+        await Assert.That(signal.HasChanged).IsTrue();
     }
 
     [Test]

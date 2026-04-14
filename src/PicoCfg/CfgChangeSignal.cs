@@ -5,6 +5,12 @@ internal sealed class CfgChangeSignal : ICfgChangeSignal
     private readonly Lock _syncRoot = new();
     private bool _hasChanged;
     private CancellationTokenSource _cts = new();
+    private readonly Task _signalTask;
+
+    public CfgChangeSignal()
+    {
+        _signalTask = _cts.Token.AwaitCancellationAsync(throwOnCancellation: false);
+    }
 
     public bool HasChanged
     {
@@ -15,13 +21,16 @@ internal sealed class CfgChangeSignal : ICfgChangeSignal
         }
     }
 
-    public async ValueTask WaitForChangeAsync(CancellationToken ct = default)
+    public ValueTask WaitForChangeAsync(CancellationToken ct = default)
     {
         var signalTask = GetSignalTask();
         if (signalTask is null)
-            return;
+            return ValueTask.CompletedTask;
 
-        await WaitForSignalOrCancellationAsync(signalTask, ct);
+        if (!ct.CanBeCanceled)
+            return new ValueTask(signalTask);
+
+        return new ValueTask(signalTask.WaitAsync(ct));
     }
 
     internal void NotifyChanged()
@@ -41,20 +50,8 @@ internal sealed class CfgChangeSignal : ICfgChangeSignal
             if (_hasChanged)
                 return null;
 
-            return _cts.Token.AwaitCancellationAsync(throwOnCancellation: false);
+            return _signalTask;
         }
-    }
-
-    private static async ValueTask WaitForSignalOrCancellationAsync(Task signalTask, CancellationToken ct)
-    {
-        if (!ct.CanBeCanceled)
-        {
-            await signalTask;
-            return;
-        }
-
-        var completedTask = await Task.WhenAny(signalTask, ct.AwaitCancellationAsync());
-        await completedTask;
     }
 
     private CancellationTokenSource? TryMarkChanged()
