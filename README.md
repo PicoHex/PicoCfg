@@ -1,5 +1,7 @@
 # PicoCfg
 
+[English](README.md) | [简体中文](README.zh.md) | [繁體中文](README.zh-TW.md) | [Deutsch](README.de.md) | [Español](README.es.md) | [Français](README.fr.md) | [日本語](README.ja.md) | [Português (Brasil)](README.pt-BR.md) | [Русский](README.ru.md)
+
 [![CI](https://github.com/PicoHex/PicoCfg/actions/workflows/ci.yml/badge.svg)](https://github.com/PicoHex/PicoCfg/actions/workflows/ci.yml)
 
 PicoCfg is a small, AOT-friendly configuration library for .NET.
@@ -55,20 +57,21 @@ Later sources override earlier ones.
 
 ### Exact key lookup
 
-`GetValue()` performs exact string lookup over the current snapshot.
+`GetValue()` performs exact full-string lookup over the current snapshot and returns `null` when the key is absent.
 Characters such as `:` and `.` are part of the key name; PicoCfg does not interpret them as hierarchical traversal.
 
 ### Stable snapshots
 
 `ICfgRoot.Snapshot` exposes the currently published read-only snapshot.
 If reload does not publish a new snapshot, the same snapshot instance is retained.
+Root publication follows the composed provider snapshot sequence, not only the final merged visible values.
 Already obtained snapshots remain usable after root disposal.
 
 ### Lifetime
 
 The built root owns the opened providers and implements `IAsyncDisposable`.
 Prefer `await using` for normal usage.
-Disposal releases owned providers, but it does not invalidate snapshots or change signals that were already obtained.
+Disposal releases owned providers, but it does not invalidate snapshots or the version-specific change signals that were already obtained.
 
 ## Source Types
 
@@ -117,22 +120,25 @@ For example, `Key = a=b=c` produces key `Key` and value `a=b=c`.
 - `ReloadAsync()` returns `true` only when a new snapshot instance is published
 - `ReloadAsync()` returns `false` when the current snapshot instance is retained
 - `GetChangeSignal()` returns the one-shot signal for the current published version
-- after a published change, fetch a new signal for later waits
+- each `ReloadAsync()` call publishes at most one new composed snapshot
+- after a published change, fetch a new signal for later waits because signals are tied to a single published version
 
 If a reload throws or is canceled after some providers have already published new snapshot versions,
-the root may first publish the observed composed snapshot for those settled provider versions and then
+the root may first publish the observed composed snapshot for those settled provider versions after reload tasks settle, and then
 rethrow the failure. After a failed reload, re-sample `Snapshot` and fetch a new change signal if you
 need to observe the latest published state.
 
 When a built-in source uses `versionStampFactory`, the first completed materialization establishes an
-authoritative stamp baseline. Later equal stamps, including repeated `null`, skip source work entirely.
-A changed stamp forces the source to reread or reparse, but the current snapshot may still be retained
-when the materialized content is unchanged.
+accepted authoritative stamp baseline. Any later completed rematerialization updates that baseline even
+when the current snapshot instance is retained because the materialized content is unchanged. Later equal
+stamps, including repeated `null`, skip reread, reparse, or re-enumeration work. A changed stamp forces
+rematerialization, but the current snapshot may still be retained when the materialized content is unchanged.
 
 When all composed provider snapshots are PicoCfg's native snapshot type, the root flattens them into a
 single dictionary-backed snapshot for steady-state reads. If any provider supplies a custom
 `ICfgSnapshot`, the root preserves that custom lookup behavior and falls back to read-time provider
-scanning instead of flattening away the custom semantics.
+scanning instead of flattening away the custom semantics. Fallback composition still honors normal
+precedence: later providers override earlier ones.
 
 ## Custom Sources
 
@@ -140,7 +146,8 @@ Custom integrations are built on `PicoCfg.Abs`.
 
 - `ICfgSource.OpenAsync()` opens a source into a long-lived provider
 - the returned provider must already expose a readable `Snapshot`
-- `ICfgProvider.ReloadAsync()` reports whether that provider published a new snapshot instance
+- `ICfgProvider.ReloadAsync()` reports whether that provider published a new snapshot instance; `false`
+  is authoritative unchanged for that provider version, and callers may retain the current snapshot reference
 - `ICfgProvider.GetChangeSignal()` returns the one-shot signal for the current published version
 
 Minimal sketch:
