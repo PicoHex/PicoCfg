@@ -32,8 +32,6 @@ internal sealed class DictionaryCfgSource : ICfgSource
 
     public async ValueTask<ICfgProvider> OpenAsync(CancellationToken ct = default)
     {
-        var provider = new DictionaryCfgProvider(_dataFactory, _versionStampFactory);
-        await provider.ReloadAsync(ct);
-        return provider;
+        return await CfgSourceHelpers.OpenAsync(new DictionaryCfgProvider(_dataFactory, _versionStampFactory), ct);
     }
 }

@@ -19,8 +19,6 @@ internal sealed class StreamCfgSource : ICfgSource
 
     public async ValueTask<ICfgProvider> OpenAsync(CancellationToken ct = default)
     {
-        var provider = new StreamCfgProvider(_streamFactory, _versionStampFactory);
-        await provider.ReloadAsync(ct);
-        return provider;
+        return await CfgSourceHelpers.OpenAsync(new StreamCfgProvider(_streamFactory, _versionStampFactory), ct);
     }
 }
