@@ -90,6 +90,21 @@ public class CfgRootTests
     }
 
     [Test]
+    public async Task ReloadAsync_WhenProviderReloadFailsWithoutObservedChange_KeepsCurrentSnapshotAndSignal()
+    {
+        var provider1 = new MockProvider([new Dictionary<string, string> { ["key"] = "same" }]);
+        var provider2 = new FailingReloadProvider();
+        var root = new CfgRoot([provider1, provider2]);
+        var originalSnapshot = root.Snapshot;
+        var changeSignal = root.GetChangeSignal();
+
+        await Assert.That(async () => await root.ReloadAsync()).Throws<InvalidOperationException>();
+        await Assert.That(root.Snapshot).IsSameReferenceAs(originalSnapshot);
+        await Assert.That(changeSignal.HasChanged).IsFalse();
+        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("same");
+    }
+
+    [Test]
     public async Task ReloadAsync_RunsProvidersInParallel()
     {
         var coordination = new ParallelReloadCoordination(expectedConcurrentReloads: 2);
