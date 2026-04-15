@@ -1,0 +1,188 @@
+namespace PicoCfg.DI.Tests;
+
+public sealed class SvcContainerExtensionsTests
+{
+    [Test]
+    public async Task RegisterCfgRoot_RegistersRootAndExposesLatestSnapshot()
+    {
+        var state = CreateSettingsData("Before", 1);
+        var version = 0;
+
+        await using var root = await CreateRootAsync(() => state, () => version);
+        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+
+        container.RegisterCfgRoot(root);
+
+        using var scope = container.CreateScope();
+        var resolvedRoot = scope.GetService<ICfgRoot>();
+        var snapshotBefore = scope.GetService<ICfgSnapshot>();
+
+        await Assert.That(resolvedRoot).IsSameReferenceAs(root);
+        await Assert.That(snapshotBefore.GetValue("App:Name")).IsEqualTo("Before");
+
+        state = CreateSettingsData("After", 2);
+        version++;
+        await root.ReloadAsync();
+
+        var snapshotAfter = scope.GetService<ICfgSnapshot>();
+
+        await Assert.That(snapshotAfter).IsNotSameReferenceAs(snapshotBefore);
+        await Assert.That(snapshotAfter.GetValue("App:Name")).IsEqualTo("After");
+    }
+
+    [Test]
+    public async Task RegisterCfgSnapshot_RegistersSnapshotAndSupportsBoundTransient()
+    {
+        var snapshot = new InlineSnapshot(CreateSettingsData("Snapshot", 7));
+
+        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+
+        container
+            .RegisterCfgSnapshot(snapshot)
+            .RegisterCfgTransient<AppSettings>("App");
+
+        using var scope = container.CreateScope();
+        var resolvedSnapshot = scope.GetService<ICfgSnapshot>();
+        var settings = scope.GetService<AppSettings>();
+
+        await Assert.That(resolvedSnapshot).IsSameReferenceAs(snapshot);
+        await Assert.That(settings.Name).IsEqualTo("Snapshot");
+        await Assert.That(settings.Count).IsEqualTo(7);
+    }
+
+    [Test]
+    public async Task RegisterCfgTransient_BindsCurrentSnapshotPerResolution()
+    {
+        var state = CreateSettingsData("Before", 1);
+        var version = 0;
+
+        await using var root = await CreateRootAsync(() => state, () => version);
+        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+
+        container
+            .RegisterCfgRoot(root)
+            .RegisterCfgTransient<AppSettings>("App");
+
+        using var scope = container.CreateScope();
+        var before = scope.GetService<AppSettings>();
+
+        state = CreateSettingsData("After", 2);
+        version++;
+        await root.ReloadAsync();
+
+        var after = scope.GetService<AppSettings>();
+
+        await Assert.That(before).IsNotSameReferenceAs(after);
+        await Assert.That(before.Name).IsEqualTo("Before");
+        await Assert.That(after.Name).IsEqualTo("After");
+        await Assert.That(after.Count).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task RegisterCfgScoped_BindsOncePerScope()
+    {
+        var state = CreateSettingsData("Before", 1);
+        var version = 0;
+
+        await using var root = await CreateRootAsync(() => state, () => version);
+        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+
+        container
+            .RegisterCfgRoot(root)
+            .RegisterCfgScoped<AppSettings>("App");
+
+        using var firstScope = container.CreateScope();
+        var first = firstScope.GetService<AppSettings>();
+        var sameScopeAgain = firstScope.GetService<AppSettings>();
+
+        state = CreateSettingsData("After", 2);
+        version++;
+        await root.ReloadAsync();
+
+        var sameScopeAfterReload = firstScope.GetService<AppSettings>();
+
+        using var secondScope = container.CreateScope();
+        var nextScope = secondScope.GetService<AppSettings>();
+
+        await Assert.That(sameScopeAgain).IsSameReferenceAs(first);
+        await Assert.That(sameScopeAfterReload).IsSameReferenceAs(first);
+        await Assert.That(first.Name).IsEqualTo("Before");
+        await Assert.That(nextScope).IsNotSameReferenceAs(first);
+        await Assert.That(nextScope.Name).IsEqualTo("After");
+    }
+
+    [Test]
+    public async Task RegisterCfgSingleton_BindsOnceForContainerLifetime()
+    {
+        var state = CreateSettingsData("Before", 1);
+        var version = 0;
+
+        await using var root = await CreateRootAsync(() => state, () => version);
+        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+
+        container
+            .RegisterCfgRoot(root)
+            .RegisterCfgSingleton<AppSettings>("App");
+
+        using var firstScope = container.CreateScope();
+        var first = firstScope.GetService<AppSettings>();
+
+        state = CreateSettingsData("After", 2);
+        version++;
+        await root.ReloadAsync();
+
+        using var secondScope = container.CreateScope();
+        var second = secondScope.GetService<AppSettings>();
+
+        await Assert.That(second).IsSameReferenceAs(first);
+        await Assert.That(second.Name).IsEqualTo("Before");
+        await Assert.That(second.Count).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task RegisterCfgTransient_WithoutRegisteredRootOrSnapshot_FailsFast()
+    {
+        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+
+        container.RegisterCfgTransient<AppSettings>("App");
+
+        using var scope = container.CreateScope();
+        var thrown = await Assert.That(() => scope.GetService<AppSettings>()).Throws<InvalidOperationException>();
+
+        await Assert.That(thrown).IsNotNull();
+        await Assert.That(thrown.Message).Contains("RegisterCfgRoot(...)");
+    }
+
+    private static async Task<ICfgRoot> CreateRootAsync(
+        Func<IReadOnlyDictionary<string, string>> dataFactory,
+        Func<int> versionFactory
+    ) => await Cfg.CreateBuilder().Add(() => dataFactory(), () => versionFactory()).BuildAsync();
+
+    private static Dictionary<string, string> CreateSettingsData(string name, int count)
+        => new()
+        {
+            ["App:Name"] = name,
+            ["App:Count"] = count.ToString(),
+        };
+
+    public sealed class AppSettings
+    {
+        public string? Name { get; set; }
+        public int Count { get; set; }
+    }
+
+    private sealed class InlineSnapshot(IReadOnlyDictionary<string, string> values) : ICfgSnapshot
+    {
+        public bool TryGetValue(string path, out string? value)
+        {
+            if (values.TryGetValue(path, out var resolved))
+            {
+                value = resolved;
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+    }
+}
