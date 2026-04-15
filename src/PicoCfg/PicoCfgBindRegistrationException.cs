@@ -12,7 +12,7 @@ public sealed class PicoCfgBindRegistrationException : InvalidOperationException
 
         return new PicoCfgBindRegistrationException(
             $"No generated PicoCfg.Gen registration was found for '{targetType.FullName}' while calling PicoCfgBind.{operationName}<T>. "
-            + "Ensure the consuming project references PicoCfg.Gen and uses a direct closed generic PicoCfgBind call so the source generator can register the binder."
+            + "Ensure the consuming project references PicoCfg.Gen and uses either a direct closed generic PicoCfgBind call or a direct closed generic PicoCfg.DI RegisterCfgTransient/Scoped/Singleton call so the source generator can register the binder."
         );
     }
 

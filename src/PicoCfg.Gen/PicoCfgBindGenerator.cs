@@ -461,20 +461,37 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
     private static bool TryGetOperation(IMethodSymbol method, out BindOperation operation)
     {
         operation = default;
-        if (method.ContainingType.Name != "PicoCfgBind" || method.ContainingType.ContainingNamespace.ToDisplayString() != "PicoCfg")
+        if (!method.IsGenericMethod || method.TypeArguments.Length != 1)
             return false;
-        if (!method.IsGenericMethod)
-            return false;
-        switch (method.Name)
+
+        if (method.ContainingType.Name == "PicoCfgBind" && method.ContainingType.ContainingNamespace.ToDisplayString() == "PicoCfg")
         {
-            case "Bind": operation = BindOperation.Bind; return true;
-            case "TryBind": operation = BindOperation.TryBind; return true;
-            case "BindInto": operation = BindOperation.BindInto; return true;
-            default: return false;
+            switch (method.Name)
+            {
+                case "Bind": operation = BindOperation.Bind; return true;
+                case "TryBind": operation = BindOperation.TryBind; return true;
+                case "BindInto": operation = BindOperation.BindInto; return true;
+                default: return false;
+            }
         }
+
+        if (method.ContainingType.Name == "SvcContainerExtensions" && method.ContainingType.ContainingNamespace.ToDisplayString() == "PicoCfg.DI")
+        {
+            switch (method.Name)
+            {
+                case "RegisterCfgTransient": operation = BindOperation.Bind; return true;
+                case "RegisterCfgScoped": operation = BindOperation.Bind; return true;
+                case "RegisterCfgSingleton": operation = BindOperation.Bind; return true;
+                default: return false;
+            }
+        }
+
+        return false;
     }
 
-    private static bool IsTargetMethodName(string methodName) => methodName is "Bind" or "TryBind" or "BindInto";
+    private static bool IsTargetMethodName(string methodName)
+        => methodName is "Bind" or "TryBind" or "BindInto"
+            or "RegisterCfgTransient" or "RegisterCfgScoped" or "RegisterCfgSingleton";
 
     private sealed class TargetRegistration(ITypeSymbol targetType)
     {
