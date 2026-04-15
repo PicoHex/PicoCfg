@@ -29,7 +29,7 @@ dotnet add package PicoCfg
 dotnet add package PicoCfg.Abs
 ```
 
-如果你想以 AOT 友善的方式把 PicoCfg 的 snapshot 或 root 綁定到平坦 POCO，請使用 `PicoCfg.Gen`：
+如果你想以 AOT 友善的方式透過原始碼產生把 PicoCfg 的 snapshot 或 root 綁定到平坦 POCO，請使用 `PicoCfg.Gen`。此套件提供產生器，而 `PicoCfgBind` 執行期 API 位於 `PicoCfg` 中：
 
 ```bash
 dotnet add package PicoCfg.Gen
@@ -61,7 +61,7 @@ Console.WriteLine(root.Snapshot.GetValue("Logging:Level"));
 
 ## 使用 PicoCfg.Gen 的生成綁定
 
-`PicoCfg.Gen` 在 PicoCfg 的精確 key snapshot 模型之上提供 source-generated 綁定輔助。
+`PicoCfg.Gen` 為 PicoCfg 的精確 key snapshot 模型提供 source generator，而 `PicoCfg` 提供生成 binder 所使用的 `PicoCfgBind` 執行期 API。
 產生的 binder 是同步的、trim-friendly，並為 Native AOT 情境而設計。
 
 ```csharp
@@ -92,7 +92,7 @@ public sealed class AppSettings
 }
 ```
 
-目前 `PicoCfg.Gen` 提供：
+在引用 `PicoCfg.Gen` 之後，可用的生成綁定 API 為：
 
 - `PicoCfgBind.Bind<T>(ICfgSnapshot, section?)`
 - `PicoCfgBind.Bind<T>(ICfgRoot, section?)`

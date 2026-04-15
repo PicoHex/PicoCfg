@@ -29,7 +29,7 @@ Utilisez `PicoCfg.Abs` si vous n'avez besoin que des contrats pour des intégrat
 dotnet add package PicoCfg.Abs
 ```
 
-Utilisez `PicoCfg.Gen` si vous souhaitez lier des snapshots ou roots PicoCfg à des POCO plats de manière compatible AOT :
+Utilisez `PicoCfg.Gen` si vous souhaitez lier des snapshots ou roots PicoCfg à des POCO plats de manière compatible AOT via la génération de source. Le package apporte le générateur, tandis que l'API runtime `PicoCfgBind` se trouve dans `PicoCfg` :
 
 ```bash
 dotnet add package PicoCfg.Gen
@@ -61,7 +61,7 @@ Les sources ajoutées plus tard remplacent celles ajoutées plus tôt.
 
 ## Liaison générée avec PicoCfg.Gen
 
-`PicoCfg.Gen` ajoute des assistants de liaison générés par source au modèle de snapshot à clés exactes de PicoCfg.
+`PicoCfg.Gen` apporte le générateur de source pour le modèle de snapshot à clés exactes de PicoCfg, tandis que `PicoCfg` fournit l'API runtime `PicoCfgBind` utilisée par le binder généré.
 Le binder généré est synchrone, compatible trim et conçu pour les scénarios Native AOT.
 
 ```csharp
@@ -92,7 +92,7 @@ public sealed class AppSettings
 }
 ```
 
-`PicoCfg.Gen` expose actuellement :
+Avec `PicoCfg.Gen` référencé, la surface de liaison générée disponible est :
 
 - `PicoCfgBind.Bind<T>(ICfgSnapshot, section?)`
 - `PicoCfgBind.Bind<T>(ICfgRoot, section?)`

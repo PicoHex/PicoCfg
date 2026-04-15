@@ -29,7 +29,7 @@ dotnet add package PicoCfg
 dotnet add package PicoCfg.Abs
 ```
 
-PicoCfg の snapshot や root を AOT フレンドリーにフラットな POCO へバインドしたい場合は `PicoCfg.Gen` を使用します。
+PicoCfg の snapshot や root を AOT フレンドリーに source generation でフラットな POCO へバインドしたい場合は `PicoCfg.Gen` を使用します。このパッケージは generator を提供し、`PicoCfgBind` のランタイム API は `PicoCfg` にあります。
 
 ```bash
 dotnet add package PicoCfg.Gen
@@ -61,7 +61,7 @@ Console.WriteLine(root.Snapshot.GetValue("Logging:Level"));
 
 ## PicoCfg.Gen による生成バインディング
 
-`PicoCfg.Gen` は、PicoCfg の厳密 key/snapshot モデルの上に source-generated なバインディング補助を追加します。
+`PicoCfg.Gen` は PicoCfg の厳密 key/snapshot モデル向けの source generator を提供し、`PicoCfg` は生成された binder が使う `PicoCfgBind` ランタイム API を提供します。
 生成される binder は同期的で trim-friendly であり、Native AOT シナリオを前提に設計されています。
 
 ```csharp
@@ -92,7 +92,7 @@ public sealed class AppSettings
 }
 ```
 
-現在の `PicoCfg.Gen` が提供する API:
+`PicoCfg.Gen` を参照すると利用できる生成バインディング API:
 
 - `PicoCfgBind.Bind<T>(ICfgSnapshot, section?)`
 - `PicoCfgBind.Bind<T>(ICfgRoot, section?)`
