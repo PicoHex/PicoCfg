@@ -35,6 +35,13 @@ dotnet add package PicoCfg.Abs
 dotnet add package PicoCfg.Gen
 ```
 
+如果你想使用 `PicoCfg.DI` 为 `ICfgRoot`、`ICfgSnapshot` 以及基于生成绑定的配置服务提供 PicoDI 注册辅助，请使用 `PicoCfg.DI`。在 project-reference 模式下，请在使用方应用中保留对 `PicoCfg.Gen` 的直接引用，这样 binder generator 才会为你的 `RegisterCfg*<T>` 调用运行：
+
+```bash
+dotnet add package PicoCfg.DI
+dotnet add package PicoCfg.Gen
+```
+
 ## 快速开始
 
 ```csharp
@@ -120,6 +127,48 @@ public sealed class AppSettings
 如果你要把值写入现有实例，`BindInto<T>` 仍可用于没有该构造函数的类型。
 
 仓库还包含 `samples/PicoCfg.Gen.Sample`，用于展示一个完整的生成绑定示例。
+
+## PicoCfg.DI 与 PicoDI
+
+`PicoCfg.DI` 在 `PicoCfg` 和 `PicoCfg.Gen` 之上增加了对 PicoDI 友好的注册辅助。
+当你已经拥有 `ICfgRoot` 时使用 `RegisterCfgRoot(...)`，当你想要固定 snapshot 时使用 `RegisterCfgSnapshot(...)`，当你想通过 PicoDI 解析基于生成绑定的 POCO 时使用 `RegisterCfgTransient<T>()` / `RegisterCfgScoped<T>()` / `RegisterCfgSingleton<T>()`。
+
+```csharp
+using PicoCfg;
+using PicoCfg.DI;
+using PicoCfg.Extensions;
+using PicoDI;
+using PicoDI.Abs;
+
+await using var root = await Cfg
+    .CreateBuilder()
+    .Add(new Dictionary<string, string>
+    {
+        ["App:Name"] = "PicoCfg.DI",
+        ["App:Count"] = "42",
+    })
+    .BuildAsync();
+
+await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+
+container
+    .RegisterCfgRoot(root)
+    .RegisterCfgSingleton<AppSettings>("App");
+
+using var scope = container.CreateScope();
+var settings = scope.GetService<AppSettings>();
+
+Console.WriteLine(settings.Name);
+Console.WriteLine(settings.Count);
+
+public sealed class AppSettings
+{
+    public string? Name { get; set; }
+    public int Count { get; set; }
+}
+```
+
+仓库还包含 `samples/PicoCfg.DI.Sample`，用于展示一个完整的 PicoDI 集成示例。
 
 ## 核心语义
 
@@ -254,6 +303,7 @@ dotnet publish samples/PicoCfg.Sample \
 dotnet restore tests/PicoCfg.Tests/PicoCfg.Tests.csproj -p:UseProjectReferences=true
 dotnet build tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-restore -p:UseProjectReferences=true
 dotnet test --project tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-build --verbosity normal -p:UseProjectReferences=true
+dotnet test --project tests/PicoCfg.DI.Tests/PicoCfg.DI.Tests.csproj --configuration Release --no-build --verbosity normal -p:UseProjectReferences=true
 ```
 
 本地运行 sample：
@@ -261,6 +311,7 @@ dotnet test --project tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration R
 ```bash
 dotnet run --project samples/PicoCfg.Sample/PicoCfg.Sample.csproj
 dotnet run --project samples/PicoCfg.Gen.Sample/PicoCfg.Gen.Sample.csproj
+dotnet run --project samples/PicoCfg.DI.Sample/PicoCfg.DI.Sample.csproj
 ```
 
 ## 许可证

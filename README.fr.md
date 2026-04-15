@@ -35,6 +35,13 @@ Utilisez `PicoCfg.Gen` si vous souhaitez lier des snapshots ou roots PicoCfg à 
 dotnet add package PicoCfg.Gen
 ```
 
+Utilisez `PicoCfg.DI` si vous voulez des helpers d'enregistrement compatibles avec PicoDI pour `ICfgRoot`, `ICfgSnapshot` et des services de configuration adossés au binding généré. En mode project-reference, conservez une référence directe à `PicoCfg.Gen` dans l'application consommatrice afin que le générateur de binder s'exécute pour vos appels `RegisterCfg*<T>` :
+
+```bash
+dotnet add package PicoCfg.DI
+dotnet add package PicoCfg.Gen
+```
+
 ## Démarrage rapide
 
 ```csharp
@@ -120,6 +127,48 @@ Les formes non prises en charge produisent des diagnostics de build au lieu d'un
 `BindInto<T>` peut toujours écrire dans une instance existante qui n'en possède pas.
 
 Le dépôt inclut aussi `samples/PicoCfg.Gen.Sample` comme petit exemple de liaison générée end-to-end.
+
+## PicoCfg.DI avec PicoDI
+
+`PicoCfg.DI` ajoute des helpers d'enregistrement compatibles avec PicoDI au-dessus de `PicoCfg` et `PicoCfg.Gen`.
+Utilisez `RegisterCfgRoot(...)` si vous possédez déjà un `ICfgRoot`, `RegisterCfgSnapshot(...)` si vous voulez un snapshot fixe, et `RegisterCfgTransient<T>()` / `RegisterCfgScoped<T>()` / `RegisterCfgSingleton<T>()` si vous voulez résoudre via PicoDI des POCO adossés au binding généré.
+
+```csharp
+using PicoCfg;
+using PicoCfg.DI;
+using PicoCfg.Extensions;
+using PicoDI;
+using PicoDI.Abs;
+
+await using var root = await Cfg
+    .CreateBuilder()
+    .Add(new Dictionary<string, string>
+    {
+        ["App:Name"] = "PicoCfg.DI",
+        ["App:Count"] = "42",
+    })
+    .BuildAsync();
+
+await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+
+container
+    .RegisterCfgRoot(root)
+    .RegisterCfgSingleton<AppSettings>("App");
+
+using var scope = container.CreateScope();
+var settings = scope.GetService<AppSettings>();
+
+Console.WriteLine(settings.Name);
+Console.WriteLine(settings.Count);
+
+public sealed class AppSettings
+{
+    public string? Name { get; set; }
+    public int Count { get; set; }
+}
+```
+
+Le dépôt inclut aussi `samples/PicoCfg.DI.Sample` comme petit exemple end-to-end d'intégration PicoDI.
 
 ## Sémantique principale
 
@@ -254,6 +303,7 @@ Ces commandes correspondent au workflow CI du dépôt :
 dotnet restore tests/PicoCfg.Tests/PicoCfg.Tests.csproj -p:UseProjectReferences=true
 dotnet build tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-restore -p:UseProjectReferences=true
 dotnet test --project tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-build --verbosity normal -p:UseProjectReferences=true
+dotnet test --project tests/PicoCfg.DI.Tests/PicoCfg.DI.Tests.csproj --configuration Release --no-build --verbosity normal -p:UseProjectReferences=true
 ```
 
 Exécuter l'exemple localement :
@@ -261,6 +311,7 @@ Exécuter l'exemple localement :
 ```bash
 dotnet run --project samples/PicoCfg.Sample/PicoCfg.Sample.csproj
 dotnet run --project samples/PicoCfg.Gen.Sample/PicoCfg.Gen.Sample.csproj
+dotnet run --project samples/PicoCfg.DI.Sample/PicoCfg.DI.Sample.csproj
 ```
 
 ## Licence

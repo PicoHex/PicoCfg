@@ -35,6 +35,13 @@ dotnet add package PicoCfg.Abs
 dotnet add package PicoCfg.Gen
 ```
 
+Используйте `PicoCfg.DI`, если вам нужны совместимые с PicoDI средства регистрации для `ICfgRoot`, `ICfgSnapshot` и сервисов конфигурации на основе generated binding. В режиме project-reference сохраняйте прямую ссылку на `PicoCfg.Gen` в приложении-потребителе, чтобы binder generator запускался для ваших вызовов `RegisterCfg*<T>`:
+
+```bash
+dotnet add package PicoCfg.DI
+dotnet add package PicoCfg.Gen
+```
+
 ## Быстрый старт
 
 ```csharp
@@ -120,6 +127,48 @@ public sealed class AppSettings
 `BindInto<T>` всё ещё может записывать в существующий экземпляр без него.
 
 В репозитории также есть `samples/PicoCfg.Gen.Sample` как небольшой end-to-end пример генерируемого связывания.
+
+## PicoCfg.DI с PicoDI
+
+`PicoCfg.DI` добавляет к `PicoCfg` и `PicoCfg.Gen` совместимые с PicoDI средства регистрации.
+Используйте `RegisterCfgRoot(...)`, если у вас уже есть `ICfgRoot`, `RegisterCfgSnapshot(...)`, если нужен фиксированный snapshot, и `RegisterCfgTransient<T>()` / `RegisterCfgScoped<T>()` / `RegisterCfgSingleton<T>()`, если вы хотите разрешать через PicoDI POCO на основе generated binding.
+
+```csharp
+using PicoCfg;
+using PicoCfg.DI;
+using PicoCfg.Extensions;
+using PicoDI;
+using PicoDI.Abs;
+
+await using var root = await Cfg
+    .CreateBuilder()
+    .Add(new Dictionary<string, string>
+    {
+        ["App:Name"] = "PicoCfg.DI",
+        ["App:Count"] = "42",
+    })
+    .BuildAsync();
+
+await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+
+container
+    .RegisterCfgRoot(root)
+    .RegisterCfgSingleton<AppSettings>("App");
+
+using var scope = container.CreateScope();
+var settings = scope.GetService<AppSettings>();
+
+Console.WriteLine(settings.Name);
+Console.WriteLine(settings.Count);
+
+public sealed class AppSettings
+{
+    public string? Name { get; set; }
+    public int Count { get; set; }
+}
+```
+
+В репозитории также есть `samples/PicoCfg.DI.Sample` как небольшой end-to-end пример интеграции с PicoDI.
 
 ## Основная семантика
 
@@ -254,6 +303,7 @@ dotnet publish samples/PicoCfg.Sample \
 dotnet restore tests/PicoCfg.Tests/PicoCfg.Tests.csproj -p:UseProjectReferences=true
 dotnet build tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-restore -p:UseProjectReferences=true
 dotnet test --project tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-build --verbosity normal -p:UseProjectReferences=true
+dotnet test --project tests/PicoCfg.DI.Tests/PicoCfg.DI.Tests.csproj --configuration Release --no-build --verbosity normal -p:UseProjectReferences=true
 ```
 
 Запуск sample локально:
@@ -261,6 +311,7 @@ dotnet test --project tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration R
 ```bash
 dotnet run --project samples/PicoCfg.Sample/PicoCfg.Sample.csproj
 dotnet run --project samples/PicoCfg.Gen.Sample/PicoCfg.Gen.Sample.csproj
+dotnet run --project samples/PicoCfg.DI.Sample/PicoCfg.DI.Sample.csproj
 ```
 
 ## Лицензия
