@@ -3,15 +3,18 @@
     <Project Path="benchmarks/PicoCfg.Benchmarks/PicoCfg.Benchmarks.csproj" />
   </Folder>
   <Folder Name="/samples/">
+    <Project Path="samples/PicoCfg.DI.Sample/PicoCfg.DI.Sample.csproj" />
     <Project Path="samples/PicoCfg.Gen.Sample/PicoCfg.Gen.Sample.csproj" />
     <Project Path="samples/PicoCfg.Sample/PicoCfg.Sample.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/PicoCfg.Abs/PicoCfg.Abs.csproj" />
+    <Project Path="src/PicoCfg.DI/PicoCfg.DI.csproj" />
     <Project Path="src/PicoCfg/PicoCfg.csproj" />
     <Project Path="src/PicoCfg.Gen/PicoCfg.Gen.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/PicoCfg.DI.Tests/PicoCfg.DI.Tests.csproj" />
     <Project Path="tests/PicoCfg.Tests/PicoCfg.Tests.csproj" />
     <Project Path="tests/PicoCfg.Gen.Tests/PicoCfg.Gen.Tests.csproj" />
   </Folder>
