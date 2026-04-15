@@ -29,6 +29,12 @@ dotnet add package PicoCfg
 dotnet add package PicoCfg.Abs
 ```
 
+Используйте `PicoCfg.Gen`, если хотите AOT-safe образом связывать snapshot или root PicoCfg с плоскими POCO:
+
+```bash
+dotnet add package PicoCfg.Gen
+```
+
 ## Быстрый старт
 
 ```csharp
@@ -52,6 +58,68 @@ Console.WriteLine(root.Snapshot.GetValue("Logging:Level"));
 ```
 
 Более поздние source переопределяют более ранние.
+
+## Генерируемое связывание с PicoCfg.Gen
+
+`PicoCfg.Gen` добавляет helpers для source-generated binding поверх модели snapshot с точными ключами в PicoCfg.
+Сгенерированный binder синхронный, trim-friendly и рассчитан на сценарии Native AOT.
+
+```csharp
+using PicoCfg;
+using PicoCfg.Extensions;
+
+await using var root = await Cfg
+    .CreateBuilder()
+    .Add(new Dictionary<string, string>
+    {
+        ["App:Name"] = "PicoCfg",
+        ["App:Enabled"] = "true",
+        ["App:Count"] = "42",
+    })
+    .BuildAsync();
+
+var settings = PicoCfgBind.Bind<AppSettings>(root, "App");
+
+Console.WriteLine(settings.Name);
+Console.WriteLine(settings.Enabled);
+Console.WriteLine(settings.Count);
+
+public sealed class AppSettings
+{
+    public string? Name { get; set; }
+    public bool Enabled { get; set; }
+    public int Count { get; set; }
+}
+```
+
+Сейчас `PicoCfg.Gen` предоставляет:
+
+- `PicoCfgBind.Bind<T>(ICfgSnapshot, section?)`
+- `PicoCfgBind.Bind<T>(ICfgRoot, section?)`
+- `PicoCfgBind.TryBind<T>(...)`
+- `PicoCfgBind.BindInto<T>(...)`
+
+### Границы PicoCfg.Gen v1
+
+Текущий сгенерированный binder намеренно остаётся узким по возможностям:
+
+- только прямые closed generic вызовы `PicoCfgBind`
+- только concrete class target
+- только flat public writable scalar properties
+- точное совпадение имени свойства с учётом регистра
+- необязательная композиция префикса `section:` поверх точных ключей PicoCfg
+
+Неподдерживаемые формы приводят к build diagnostics вместо runtime reflection fallback, включая:
+
+- вложенные или сложные object properties
+- collection properties
+- open generic targets
+- неподдерживаемые типы свойств
+
+`Bind<T>` и `TryBind<T>` требуют public parameterless constructor.
+`BindInto<T>` всё ещё может записывать в существующий экземпляр без него.
+
+В репозитории также есть `samples/PicoCfg.Gen.Sample` как небольшой end-to-end пример генерируемого связывания.
 
 ## Основная семантика
 
@@ -192,6 +260,7 @@ dotnet test --project tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration R
 
 ```bash
 dotnet run --project samples/PicoCfg.Sample/PicoCfg.Sample.csproj
+dotnet run --project samples/PicoCfg.Gen.Sample/PicoCfg.Gen.Sample.csproj
 ```
 
 ## Лицензия

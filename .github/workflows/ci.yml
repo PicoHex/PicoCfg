@@ -74,5 +74,115 @@ jobs:
       - name: Run tests
         run: dotnet test --project tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-build --verbosity normal --timeout 120s --no-progress --no-ansi -p:UseProjectReferences=true
 
+      - name: Run PicoCfg.Gen tests
+        run: dotnet test --project tests/PicoCfg.Gen.Tests/PicoCfg.Gen.Tests.csproj --configuration Release --no-build --verbosity normal --timeout 120s --no-progress --no-ansi -p:UseProjectReferences=true
+
+      - name: Validate PicoCfg.Gen package path
+        shell: bash
+        run: |
+          rm -rf ./artifacts/ci-nupkg
+          rm -rf ./artifacts/ci-packages
+          mkdir -p ./artifacts/ci-nupkg
+          mkdir -p ./artifacts/ci-packages/abs ./artifacts/ci-packages/pico ./artifacts/ci-packages/gen ./artifacts/ci-packages/consumer
+
+          dotnet pack src/PicoCfg.Abs/PicoCfg.Abs.csproj \
+            --configuration Release \
+            --output ./artifacts/ci-nupkg \
+            -p:UseProjectReferences=false \
+            -p:RestorePackagesPath="$GITHUB_WORKSPACE/artifacts/ci-packages/abs"
+
+          dotnet pack src/PicoCfg/PicoCfg.csproj \
+            --configuration Release \
+            --output ./artifacts/ci-nupkg \
+            -p:UseProjectReferences=false \
+            -p:RestoreAdditionalProjectSources="$GITHUB_WORKSPACE/artifacts/ci-nupkg" \
+            -p:RestorePackagesPath="$GITHUB_WORKSPACE/artifacts/ci-packages/pico"
+
+          dotnet pack src/PicoCfg.Gen/PicoCfg.Gen.csproj \
+            --configuration Release \
+            --output ./artifacts/ci-nupkg \
+            -p:UseProjectReferences=false \
+            -p:RestoreAdditionalProjectSources="$GITHUB_WORKSPACE/artifacts/ci-nupkg" \
+            -p:RestorePackagesPath="$GITHUB_WORKSPACE/artifacts/ci-packages/gen"
+
+      - name: Smoke test PicoCfg.Gen package consumer
+        if: matrix.logical-target == 'linux-x64'
+        shell: bash
+        run: |
+          rm -rf ./artifacts/ci-smoke
+          mkdir -p ./artifacts/ci-smoke
+
+          dotnet new console \
+            --output ./artifacts/ci-smoke/PicoCfg.Gen.Consumer \
+            --framework net10.0 \
+            --force
+
+          cat > ./artifacts/ci-smoke/PicoCfg.Gen.Consumer/PicoCfg.Gen.Consumer.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>Exe</OutputType>
+              <TargetFramework>net10.0</TargetFramework>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+            </PropertyGroup>
+
+            <ItemGroup>
+              <PackageReference Include="PicoCfg.Gen" Version="0.0.0-dev" />
+            </ItemGroup>
+          </Project>
+          EOF
+
+          cat > ./artifacts/ci-smoke/PicoCfg.Gen.Consumer/Program.cs <<'EOF'
+          using PicoCfg;
+          using PicoCfg.Extensions;
+
+          var root = await Cfg
+              .CreateBuilder()
+              .Add(new Dictionary<string, string>
+              {
+                  ["Smoke:Name"] = "PicoCfg",
+                  ["Smoke:Enabled"] = "true",
+                  ["Smoke:Count"] = "42",
+              })
+              .BuildAsync();
+
+          await using (root.ConfigureAwait(false))
+          {
+              var settings = PicoCfgBind.Bind<SmokeSettings>(root, "Smoke");
+
+              if (settings.Name != "PicoCfg" || !settings.Enabled || settings.Count != 42)
+              {
+                  Environment.ExitCode = 1;
+                  return;
+              }
+          }
+
+          Environment.ExitCode = 0;
+
+          public sealed class SmokeSettings
+          {
+              public string? Name { get; set; }
+              public bool Enabled { get; set; }
+              public int Count { get; set; }
+          }
+          EOF
+
+          dotnet restore ./artifacts/ci-smoke/PicoCfg.Gen.Consumer/PicoCfg.Gen.Consumer.csproj \
+            --source https://api.nuget.org/v3/index.json \
+            --source "$GITHUB_WORKSPACE/artifacts/ci-nupkg" \
+            -p:RestorePackagesPath="$GITHUB_WORKSPACE/artifacts/ci-packages/consumer"
+
+          dotnet build ./artifacts/ci-smoke/PicoCfg.Gen.Consumer/PicoCfg.Gen.Consumer.csproj \
+            --configuration Release \
+            --no-restore
+
+          dotnet run --project ./artifacts/ci-smoke/PicoCfg.Gen.Consumer/PicoCfg.Gen.Consumer.csproj \
+            --configuration Release \
+            --no-build
+
       - name: Validate AOT publish path
         run: dotnet publish samples/PicoCfg.Sample/PicoCfg.Sample.csproj --configuration Release --runtime ${{ matrix.rid }} --self-contained -p:UseProjectReferences=true
+
+      - name: Validate PicoCfg.Gen sample path
+        if: matrix.logical-target == 'linux-x64'
+        run: dotnet run --project samples/PicoCfg.Gen.Sample/PicoCfg.Gen.Sample.csproj --configuration Release -p:UseProjectReferences=true

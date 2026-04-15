@@ -29,6 +29,12 @@ Use `PicoCfg.Abs` when you only need the contracts for custom integrations or ab
 dotnet add package PicoCfg.Abs
 ```
 
+Use `PicoCfg.Gen` when you want AOT-safe generated binding from PicoCfg snapshots or roots into flat POCOs:
+
+```bash
+dotnet add package PicoCfg.Gen
+```
+
 ## Quick Start
 
 ```csharp
@@ -52,6 +58,68 @@ Console.WriteLine(root.Snapshot.GetValue("Logging:Level"));
 ```
 
 Later sources override earlier ones.
+
+## Generated Binding with PicoCfg.Gen
+
+`PicoCfg.Gen` adds source-generated binding helpers on top of PicoCfg's exact-key snapshot model.
+The generated binder is synchronous, trim-friendly, and designed for Native AOT scenarios.
+
+```csharp
+using PicoCfg;
+using PicoCfg.Extensions;
+
+await using var root = await Cfg
+    .CreateBuilder()
+    .Add(new Dictionary<string, string>
+    {
+        ["App:Name"] = "PicoCfg",
+        ["App:Enabled"] = "true",
+        ["App:Count"] = "42",
+    })
+    .BuildAsync();
+
+var settings = PicoCfgBind.Bind<AppSettings>(root, "App");
+
+Console.WriteLine(settings.Name);
+Console.WriteLine(settings.Enabled);
+Console.WriteLine(settings.Count);
+
+public sealed class AppSettings
+{
+    public string? Name { get; set; }
+    public bool Enabled { get; set; }
+    public int Count { get; set; }
+}
+```
+
+`PicoCfg.Gen` currently exposes:
+
+- `PicoCfgBind.Bind<T>(ICfgSnapshot, section?)`
+- `PicoCfgBind.Bind<T>(ICfgRoot, section?)`
+- `PicoCfgBind.TryBind<T>(...)`
+- `PicoCfgBind.BindInto<T>(...)`
+
+### PicoCfg.Gen v1 scope
+
+The current generated binder intentionally stays narrow:
+
+- direct closed generic `PicoCfgBind` calls only
+- concrete class targets only
+- flat public writable scalar properties only
+- exact case-sensitive property-name matching
+- optional `section:` prefix composition on top of PicoCfg's exact string keys
+
+Unsupported shapes produce build diagnostics instead of runtime reflection fallback, including:
+
+- nested or complex object properties
+- collection properties
+- open generic targets
+- unsupported property types
+
+`Bind<T>` and `TryBind<T>` require a public parameterless constructor.
+`BindInto<T>` can still target an existing instance when you want to bind into a type without one.
+
+The repository also includes `samples/PicoCfg.Gen.Sample` as a small end-to-end generated binding example.
 
 ## Core Semantics
 
@@ -197,6 +265,7 @@ Run the sample locally:
 
 ```bash
 dotnet run --project samples/PicoCfg.Sample/PicoCfg.Sample.csproj
+dotnet run --project samples/PicoCfg.Gen.Sample/PicoCfg.Gen.Sample.csproj
 ```
 
 ## License

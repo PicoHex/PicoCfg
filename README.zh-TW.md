@@ -29,6 +29,12 @@ dotnet add package PicoCfg
 dotnet add package PicoCfg.Abs
 ```
 
+如果你想以 AOT 友善的方式把 PicoCfg 的 snapshot 或 root 綁定到平坦 POCO，請使用 `PicoCfg.Gen`：
+
+```bash
+dotnet add package PicoCfg.Gen
+```
+
 ## 快速開始
 
 ```csharp
@@ -52,6 +58,68 @@ Console.WriteLine(root.Snapshot.GetValue("Logging:Level"));
 ```
 
 後加入的 source 會覆蓋先加入的 source。
+
+## 使用 PicoCfg.Gen 的生成綁定
+
+`PicoCfg.Gen` 在 PicoCfg 的精確 key snapshot 模型之上提供 source-generated 綁定輔助。
+產生的 binder 是同步的、trim-friendly，並為 Native AOT 情境而設計。
+
+```csharp
+using PicoCfg;
+using PicoCfg.Extensions;
+
+await using var root = await Cfg
+    .CreateBuilder()
+    .Add(new Dictionary<string, string>
+    {
+        ["App:Name"] = "PicoCfg",
+        ["App:Enabled"] = "true",
+        ["App:Count"] = "42",
+    })
+    .BuildAsync();
+
+var settings = PicoCfgBind.Bind<AppSettings>(root, "App");
+
+Console.WriteLine(settings.Name);
+Console.WriteLine(settings.Enabled);
+Console.WriteLine(settings.Count);
+
+public sealed class AppSettings
+{
+    public string? Name { get; set; }
+    public bool Enabled { get; set; }
+    public int Count { get; set; }
+}
+```
+
+目前 `PicoCfg.Gen` 提供：
+
+- `PicoCfgBind.Bind<T>(ICfgSnapshot, section?)`
+- `PicoCfgBind.Bind<T>(ICfgRoot, section?)`
+- `PicoCfgBind.TryBind<T>(...)`
+- `PicoCfgBind.BindInto<T>(...)`
+
+### PicoCfg.Gen v1 範圍
+
+目前生成綁定器刻意保持在較小範圍：
+
+- 僅支援 direct closed generic `PicoCfgBind` 呼叫
+- 僅支援 concrete class target
+- 僅支援 flat public writable scalar property
+- 屬性名稱採大小寫敏感的精確比對
+- 在 PicoCfg 精確 key 之上支援可選 `section:` 前綴拼接
+
+以下情況會產生建置診斷，而不是回退到執行期反射：
+
+- 巢狀或複雜物件屬性
+- 集合屬性
+- open generic target
+- 不支援的屬性型別
+
+`Bind<T>` 與 `TryBind<T>` 需要 public parameterless constructor。
+如果你要把值寫入現有實例，`BindInto<T>` 仍可用於沒有該建構函式的型別。
+
+儲存庫也包含 `samples/PicoCfg.Gen.Sample`，可作為完整生成綁定範例。
 
 ## 核心語義
 
@@ -192,6 +260,7 @@ dotnet test --project tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration R
 
 ```bash
 dotnet run --project samples/PicoCfg.Sample/PicoCfg.Sample.csproj
+dotnet run --project samples/PicoCfg.Gen.Sample/PicoCfg.Gen.Sample.csproj
 ```
 
 ## 授權

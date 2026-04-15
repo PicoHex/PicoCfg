@@ -29,6 +29,12 @@ Use `PicoCfg.Abs` quando você precisar apenas dos contratos para integrações 
 dotnet add package PicoCfg.Abs
 ```
 
+Use `PicoCfg.Gen` quando quiser vincular snapshots ou roots do PicoCfg a POCOs planos de forma segura para AOT:
+
+```bash
+dotnet add package PicoCfg.Gen
+```
+
 ## Início rápido
 
 ```csharp
@@ -52,6 +58,68 @@ Console.WriteLine(root.Snapshot.GetValue("Logging:Level"));
 ```
 
 Fontes adicionadas depois sobrescrevem fontes adicionadas antes.
+
+## Binding gerado com PicoCfg.Gen
+
+`PicoCfg.Gen` adiciona helpers de binding gerados por código sobre o modelo de snapshot com chaves exatas do PicoCfg.
+O binder gerado é síncrono, amigável a trim e projetado para cenários Native AOT.
+
+```csharp
+using PicoCfg;
+using PicoCfg.Extensions;
+
+await using var root = await Cfg
+    .CreateBuilder()
+    .Add(new Dictionary<string, string>
+    {
+        ["App:Name"] = "PicoCfg",
+        ["App:Enabled"] = "true",
+        ["App:Count"] = "42",
+    })
+    .BuildAsync();
+
+var settings = PicoCfgBind.Bind<AppSettings>(root, "App");
+
+Console.WriteLine(settings.Name);
+Console.WriteLine(settings.Enabled);
+Console.WriteLine(settings.Count);
+
+public sealed class AppSettings
+{
+    public string? Name { get; set; }
+    public bool Enabled { get; set; }
+    public int Count { get; set; }
+}
+```
+
+Atualmente `PicoCfg.Gen` expõe:
+
+- `PicoCfgBind.Bind<T>(ICfgSnapshot, section?)`
+- `PicoCfgBind.Bind<T>(ICfgRoot, section?)`
+- `PicoCfgBind.TryBind<T>(...)`
+- `PicoCfgBind.BindInto<T>(...)`
+
+### Escopo do PicoCfg.Gen v1
+
+O binder gerado atual mantém intencionalmente um escopo pequeno:
+
+- apenas chamadas diretas closed generic a `PicoCfgBind`
+- apenas destinos do tipo concrete class
+- apenas flat public writable scalar properties
+- correspondência exata e sensível a maiúsculas/minúsculas do nome da propriedade
+- composição opcional do prefixo `section:` sobre as chaves exatas do PicoCfg
+
+Formas não suportadas produzem diagnósticos de compilação em vez de fallback por reflexão em tempo de execução, incluindo:
+
+- propriedades de objeto aninhadas ou complexas
+- propriedades de coleção
+- destinos open generic
+- tipos de propriedade não suportados
+
+`Bind<T>` e `TryBind<T>` exigem um construtor público sem parâmetros.
+`BindInto<T>` ainda pode escrever em uma instância existente sem esse construtor.
+
+O repositório também inclui `samples/PicoCfg.Gen.Sample` como um pequeno exemplo end-to-end de binding gerado.
 
 ## Semântica principal
 
@@ -192,6 +260,7 @@ Execute o sample localmente:
 
 ```bash
 dotnet run --project samples/PicoCfg.Sample/PicoCfg.Sample.csproj
+dotnet run --project samples/PicoCfg.Gen.Sample/PicoCfg.Gen.Sample.csproj
 ```
 
 ## Licença

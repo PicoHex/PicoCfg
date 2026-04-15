@@ -29,6 +29,12 @@ dotnet add package PicoCfg
 dotnet add package PicoCfg.Abs
 ```
 
+如果你想把 PicoCfg 的 snapshot 或 root 以 AOT 友好的方式绑定到平坦 POCO，请使用 `PicoCfg.Gen`：
+
+```bash
+dotnet add package PicoCfg.Gen
+```
+
 ## 快速开始
 
 ```csharp
@@ -52,6 +58,68 @@ Console.WriteLine(root.Snapshot.GetValue("Logging:Level"));
 ```
 
 后添加的 source 会覆盖先添加的 source。
+
+## 使用 PicoCfg.Gen 进行生成绑定
+
+`PicoCfg.Gen` 在 PicoCfg 的精确 key snapshot 模型之上提供源码生成绑定辅助。
+生成的 binder 是同步的、trim 友好的，并面向 Native AOT 场景设计。
+
+```csharp
+using PicoCfg;
+using PicoCfg.Extensions;
+
+await using var root = await Cfg
+    .CreateBuilder()
+    .Add(new Dictionary<string, string>
+    {
+        ["App:Name"] = "PicoCfg",
+        ["App:Enabled"] = "true",
+        ["App:Count"] = "42",
+    })
+    .BuildAsync();
+
+var settings = PicoCfgBind.Bind<AppSettings>(root, "App");
+
+Console.WriteLine(settings.Name);
+Console.WriteLine(settings.Enabled);
+Console.WriteLine(settings.Count);
+
+public sealed class AppSettings
+{
+    public string? Name { get; set; }
+    public bool Enabled { get; set; }
+    public int Count { get; set; }
+}
+```
+
+当前 `PicoCfg.Gen` 暴露：
+
+- `PicoCfgBind.Bind<T>(ICfgSnapshot, section?)`
+- `PicoCfgBind.Bind<T>(ICfgRoot, section?)`
+- `PicoCfgBind.TryBind<T>(...)`
+- `PicoCfgBind.BindInto<T>(...)`
+
+### PicoCfg.Gen v1 范围
+
+当前生成绑定器刻意保持较小范围：
+
+- 仅支持 direct closed generic `PicoCfgBind` 调用
+- 仅支持 concrete class target
+- 仅支持 flat public writable scalar property
+- 属性名按大小写敏感方式精确匹配
+- 在 PicoCfg 精确 key 之上支持可选 `section:` 前缀拼接
+
+以下情况会产生构建诊断，而不是回退到运行时反射：
+
+- 嵌套或复杂对象属性
+- 集合属性
+- open generic target
+- 不支持的属性类型
+
+`Bind<T>` 和 `TryBind<T>` 要求 public parameterless constructor。
+如果你要把值写入现有实例，`BindInto<T>` 仍可用于没有该构造函数的类型。
+
+仓库还包含 `samples/PicoCfg.Gen.Sample`，用于展示一个完整的生成绑定示例。
 
 ## 核心语义
 
@@ -192,6 +260,7 @@ dotnet test --project tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration R
 
 ```bash
 dotnet run --project samples/PicoCfg.Sample/PicoCfg.Sample.csproj
+dotnet run --project samples/PicoCfg.Gen.Sample/PicoCfg.Gen.Sample.csproj
 ```
 
 ## 许可证

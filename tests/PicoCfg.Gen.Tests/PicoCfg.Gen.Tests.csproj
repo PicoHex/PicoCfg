@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <IsPackable>false</IsPackable>
+        <OutputType>Exe</OutputType>
+        <PublishAot>false</PublishAot>
+        <TrimMode>full</TrimMode>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="TUnit" Version="1.33.0" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\src\PicoCfg.Gen\PicoCfg.Gen.csproj" />
+        <ProjectReference Include="..\..\src\PicoCfg.Gen.Generator\PicoCfg.Gen.Generator.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="true"
+                          SetTargetFramework="TargetFramework=netstandard2.0" />
+    </ItemGroup>
+
+</Project>

@@ -29,6 +29,12 @@ dotnet add package PicoCfg
 dotnet add package PicoCfg.Abs
 ```
 
+PicoCfg の snapshot や root を AOT フレンドリーにフラットな POCO へバインドしたい場合は `PicoCfg.Gen` を使用します。
+
+```bash
+dotnet add package PicoCfg.Gen
+```
+
 ## クイックスタート
 
 ```csharp
@@ -52,6 +58,68 @@ Console.WriteLine(root.Snapshot.GetValue("Logging:Level"));
 ```
 
 後から追加した source は、先に追加した source を上書きします。
+
+## PicoCfg.Gen による生成バインディング
+
+`PicoCfg.Gen` は、PicoCfg の厳密 key/snapshot モデルの上に source-generated なバインディング補助を追加します。
+生成される binder は同期的で trim-friendly であり、Native AOT シナリオを前提に設計されています。
+
+```csharp
+using PicoCfg;
+using PicoCfg.Extensions;
+
+await using var root = await Cfg
+    .CreateBuilder()
+    .Add(new Dictionary<string, string>
+    {
+        ["App:Name"] = "PicoCfg",
+        ["App:Enabled"] = "true",
+        ["App:Count"] = "42",
+    })
+    .BuildAsync();
+
+var settings = PicoCfgBind.Bind<AppSettings>(root, "App");
+
+Console.WriteLine(settings.Name);
+Console.WriteLine(settings.Enabled);
+Console.WriteLine(settings.Count);
+
+public sealed class AppSettings
+{
+    public string? Name { get; set; }
+    public bool Enabled { get; set; }
+    public int Count { get; set; }
+}
+```
+
+現在の `PicoCfg.Gen` が提供する API:
+
+- `PicoCfgBind.Bind<T>(ICfgSnapshot, section?)`
+- `PicoCfgBind.Bind<T>(ICfgRoot, section?)`
+- `PicoCfgBind.TryBind<T>(...)`
+- `PicoCfgBind.BindInto<T>(...)`
+
+### PicoCfg.Gen v1 の対象範囲
+
+現在の生成 binder は意図的に範囲を絞っています。
+
+- direct closed generic な `PicoCfgBind` 呼び出しのみ
+- concrete class target のみ
+- flat public writable scalar property のみ
+- プロパティ名は大文字小文字を区別して厳密一致
+- PicoCfg の厳密 key の上で optional な `section:` prefix 合成をサポート
+
+未対応の形はランタイム reflection fallback ではなく build diagnostics として報告されます。たとえば:
+
+- ネストした/複雑なオブジェクト property
+- collection property
+- open generic target
+- 未対応の property type
+
+`Bind<T>` と `TryBind<T>` には public parameterless constructor が必要です。
+既存インスタンスへ書き込む場合は、そのコンストラクターがなくても `BindInto<T>` を使えます。
+
+リポジトリには、生成バインディングの小さな end-to-end 例として `samples/PicoCfg.Gen.Sample` も含まれています。
 
 ## コアセマンティクス
 
@@ -192,6 +260,7 @@ sample をローカルで実行:
 
 ```bash
 dotnet run --project samples/PicoCfg.Sample/PicoCfg.Sample.csproj
+dotnet run --project samples/PicoCfg.Gen.Sample/PicoCfg.Gen.Sample.csproj
 ```
 
 ## ライセンス
