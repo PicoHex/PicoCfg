@@ -53,7 +53,7 @@ jobs:
           rm -rf ./artifacts/nupkg
           rm -rf ./artifacts/packages
           mkdir -p ./artifacts/nupkg
-          mkdir -p ./artifacts/packages/abs ./artifacts/packages/pico ./artifacts/packages/gen
+          mkdir -p ./artifacts/packages/abs ./artifacts/packages/pico ./artifacts/packages/gen ./artifacts/packages/di
 
           VERSION="${{ steps.version.outputs.VERSION }}"
           NUPKG_DIR="$GITHUB_WORKSPACE/artifacts/nupkg"
@@ -87,6 +87,16 @@ jobs:
             -p:RestoreSources="$NUGET_SOURCE" \
             -p:RestoreAdditionalProjectSources="$NUPKG_DIR" \
             -p:RestorePackagesPath="$GITHUB_WORKSPACE/artifacts/packages/gen"
+
+          dotnet pack src/PicoCfg.DI/PicoCfg.DI.csproj \
+            --configuration Release \
+            --output ./artifacts/nupkg \
+            -p:Version="$VERSION" \
+            -p:UseProjectReferences=false \
+            -p:PicoCfgPackageVersion="$VERSION" \
+            -p:RestoreSources="$NUGET_SOURCE" \
+            -p:RestoreAdditionalProjectSources="$NUPKG_DIR" \
+            -p:RestorePackagesPath="$GITHUB_WORKSPACE/artifacts/packages/di"
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
