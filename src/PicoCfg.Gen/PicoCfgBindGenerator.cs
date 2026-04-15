@@ -204,12 +204,8 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
             var bindDelegateType = "global::System.Func<global::PicoCfg.Abs.ICfgSnapshot, string?, " + typeName + ">";
             var tryBindDelegateType = "global::PicoCfg.PicoCfgGeneratedTryBindDelegate<" + typeName + ">";
             var bindIntoDelegateType = "global::PicoCfg.PicoCfgGeneratedBindIntoDelegate<" + typeName + ">";
-            var hasCtor = target.HasPublicParameterlessConstructor
-                ? "(" + bindDelegateType + ")Bind_" + i
-                : "null";
-            var hasTryBind = target.HasPublicParameterlessConstructor
-                ? "(" + tryBindDelegateType + ")TryBind_" + i
-                : "null";
+            var hasCtor = target.HasPublicParameterlessConstructor ? "(" + bindDelegateType + ")Bind_" + i : "null";
+            var hasTryBind = target.HasPublicParameterlessConstructor ? "(" + tryBindDelegateType + ")TryBind_" + i : "null";
 
             sb.Append("        global::PicoCfg.PicoCfgBindRuntime.Register<").Append(typeName).AppendLine(">(");
             sb.AppendLine("            contractVersion: global::PicoCfg.PicoCfgBindRuntime.ContractVersion,");
@@ -352,8 +348,7 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
     }
 
     private static string GetParseCall(ScalarKind scalarKind, string rawName, string valueName, string targetTypeName)
-    {
-        return scalarKind switch
+        => scalarKind switch
         {
             ScalarKind.Boolean => $"global::PicoCfg.PicoCfgBindRuntime.TryParseBoolean({rawName}, out var {valueName})",
             ScalarKind.Byte => $"global::PicoCfg.PicoCfgBindRuntime.TryParseByte({rawName}, out var {valueName})",
@@ -371,7 +366,6 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
             ScalarKind.Enum => $"global::PicoCfg.PicoCfgBindRuntime.TryParseEnum<{targetTypeName}>({rawName}, out var {valueName})",
             _ => throw new InvalidOperationException($"Unexpected scalar kind '{scalarKind}'."),
         };
-    }
 
     private static bool TryGetScalarKind(ITypeSymbol type, out ScalarKind scalarKind, out ITypeSymbol underlyingType)
     {
@@ -393,42 +387,18 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
 
         switch (underlyingType.SpecialType)
         {
-            case SpecialType.System_Boolean:
-                scalarKind = ScalarKind.Boolean;
-                return true;
-            case SpecialType.System_Byte:
-                scalarKind = ScalarKind.Byte;
-                return true;
-            case SpecialType.System_SByte:
-                scalarKind = ScalarKind.SByte;
-                return true;
-            case SpecialType.System_Int16:
-                scalarKind = ScalarKind.Int16;
-                return true;
-            case SpecialType.System_UInt16:
-                scalarKind = ScalarKind.UInt16;
-                return true;
-            case SpecialType.System_Int32:
-                scalarKind = ScalarKind.Int32;
-                return true;
-            case SpecialType.System_UInt32:
-                scalarKind = ScalarKind.UInt32;
-                return true;
-            case SpecialType.System_Int64:
-                scalarKind = ScalarKind.Int64;
-                return true;
-            case SpecialType.System_UInt64:
-                scalarKind = ScalarKind.UInt64;
-                return true;
-            case SpecialType.System_Single:
-                scalarKind = ScalarKind.Single;
-                return true;
-            case SpecialType.System_Double:
-                scalarKind = ScalarKind.Double;
-                return true;
-            case SpecialType.System_Decimal:
-                scalarKind = ScalarKind.Decimal;
-                return true;
+            case SpecialType.System_Boolean: scalarKind = ScalarKind.Boolean; return true;
+            case SpecialType.System_Byte: scalarKind = ScalarKind.Byte; return true;
+            case SpecialType.System_SByte: scalarKind = ScalarKind.SByte; return true;
+            case SpecialType.System_Int16: scalarKind = ScalarKind.Int16; return true;
+            case SpecialType.System_UInt16: scalarKind = ScalarKind.UInt16; return true;
+            case SpecialType.System_Int32: scalarKind = ScalarKind.Int32; return true;
+            case SpecialType.System_UInt32: scalarKind = ScalarKind.UInt32; return true;
+            case SpecialType.System_Int64: scalarKind = ScalarKind.Int64; return true;
+            case SpecialType.System_UInt64: scalarKind = ScalarKind.UInt64; return true;
+            case SpecialType.System_Single: scalarKind = ScalarKind.Single; return true;
+            case SpecialType.System_Double: scalarKind = ScalarKind.Double; return true;
+            case SpecialType.System_Decimal: scalarKind = ScalarKind.Decimal; return true;
         }
 
         if (underlyingType is INamedTypeSymbol namedGuidType
@@ -450,22 +420,18 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
     {
         if (type.TypeKind == TypeKind.TypeParameter)
             return true;
-
         if (type is IArrayTypeSymbol arrayType)
             return ContainsTypeParameter(arrayType.ElementType);
-
         if (type is INamedTypeSymbol namedType)
         {
             if (namedType.IsUnboundGenericType)
                 return true;
-
             foreach (var typeArgument in namedType.TypeArguments)
             {
                 if (ContainsTypeParameter(typeArgument))
                     return true;
             }
         }
-
         return false;
     }
 
@@ -473,16 +439,13 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
     {
         if (type.SpecialType == SpecialType.System_String)
             return false;
-
         if (type is IArrayTypeSymbol)
             return true;
-
         foreach (var iface in type.AllInterfaces)
         {
             if (iface.SpecialType == SpecialType.System_Collections_IEnumerable)
                 return true;
         }
-
         return false;
     }
 
@@ -500,28 +463,18 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
         operation = default;
         if (method.ContainingType.Name != "PicoCfgBind" || method.ContainingType.ContainingNamespace.ToDisplayString() != "PicoCfg")
             return false;
-
         if (!method.IsGenericMethod)
             return false;
-
         switch (method.Name)
         {
-            case "Bind":
-                operation = BindOperation.Bind;
-                return true;
-            case "TryBind":
-                operation = BindOperation.TryBind;
-                return true;
-            case "BindInto":
-                operation = BindOperation.BindInto;
-                return true;
-            default:
-                return false;
+            case "Bind": operation = BindOperation.Bind; return true;
+            case "TryBind": operation = BindOperation.TryBind; return true;
+            case "BindInto": operation = BindOperation.BindInto; return true;
+            default: return false;
         }
     }
 
-    private static bool IsTargetMethodName(string methodName)
-        => methodName is "Bind" or "TryBind" or "BindInto";
+    private static bool IsTargetMethodName(string methodName) => methodName is "Bind" or "TryBind" or "BindInto";
 
     private sealed class TargetRegistration(ITypeSymbol targetType)
     {
@@ -540,20 +493,13 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
         }
 
         public ITypeSymbol TargetType { get; }
-
         public BindOperation Operation { get; }
-
         public Location Location { get; }
     }
 
     private sealed class TargetModel
     {
-        public TargetModel(
-            INamedTypeSymbol targetType,
-            BindOperation operations,
-            ImmutableArray<PropertyModel> properties,
-            bool hasPublicParameterlessConstructor
-        )
+        public TargetModel(INamedTypeSymbol targetType, BindOperation operations, ImmutableArray<PropertyModel> properties, bool hasPublicParameterlessConstructor)
         {
             TargetType = targetType;
             Operations = operations;
@@ -562,23 +508,14 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
         }
 
         public INamedTypeSymbol TargetType { get; }
-
         public BindOperation Operations { get; }
-
         public ImmutableArray<PropertyModel> Properties { get; }
-
         public bool HasPublicParameterlessConstructor { get; }
     }
 
     private sealed class PropertyModel
     {
-        public PropertyModel(
-            string name,
-            ITypeSymbol type,
-            ScalarKind scalarKind,
-            ITypeSymbol underlyingType,
-            bool isNullable
-        )
+        public PropertyModel(string name, ITypeSymbol type, ScalarKind scalarKind, ITypeSymbol underlyingType, bool isNullable)
         {
             Name = name;
             Type = type;
@@ -588,13 +525,9 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
         }
 
         public string Name { get; }
-
         public ITypeSymbol Type { get; }
-
         public ScalarKind ScalarKind { get; }
-
         public ITypeSymbol UnderlyingType { get; }
-
         public bool IsNullable { get; }
     }
 

@@ -38,29 +38,17 @@ public static class PicoCfgBindRuntime
     }
 
     public static bool TryParseBoolean(string? raw, out bool value) => bool.TryParse(raw, out value);
-
     public static bool TryParseByte(string? raw, out byte value) => byte.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-
     public static bool TryParseSByte(string? raw, out sbyte value) => sbyte.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-
     public static bool TryParseInt16(string? raw, out short value) => short.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-
     public static bool TryParseUInt16(string? raw, out ushort value) => ushort.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-
     public static bool TryParseInt32(string? raw, out int value) => int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-
     public static bool TryParseUInt32(string? raw, out uint value) => uint.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-
     public static bool TryParseInt64(string? raw, out long value) => long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-
     public static bool TryParseUInt64(string? raw, out ulong value) => ulong.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
-
     public static bool TryParseSingle(string? raw, out float value) => float.TryParse(raw, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value);
-
     public static bool TryParseDouble(string? raw, out double value) => double.TryParse(raw, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value);
-
     public static bool TryParseDecimal(string? raw, out decimal value) => decimal.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
-
     public static bool TryParseGuid(string? raw, out Guid value) => Guid.TryParse(raw, out value);
 
     public static bool TryParseEnum<TEnum>(string? raw, out TEnum value)
@@ -114,10 +102,7 @@ internal sealed class PicoCfgBindRegistration<T>
     }
 
     public int ContractVersion { get; }
-
     public Func<ICfgSnapshot, string?, T>? Bind { get; }
-
     public PicoCfgGeneratedTryBindDelegate<T>? TryBind { get; }
-
     public PicoCfgGeneratedBindIntoDelegate<T> BindInto { get; }
 }

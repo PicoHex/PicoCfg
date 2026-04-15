@@ -1,45 +1,45 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>netstandard2.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
         <IsPackable>true</IsPackable>
         <PackageId>PicoCfg.Gen</PackageId>
-        <Description>Generated flat scalar binding helpers for PicoCfg snapshots and roots.</Description>
+        <Description>Source generator package for PicoCfg generated binding.</Description>
         <PackageReadmeFile>README.md</PackageReadmeFile>
-        <PackageReleaseNotes>Initial PicoCfg.Gen release with AOT-safe generated binding for flat public writable scalar properties only. Supports exact property-name mapping with optional section prefix and emits diagnostics for unsupported complex or collection members.</PackageReleaseNotes>
-        <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_IncludePicoCfgGenAnalyzer</TargetsForTfmSpecificContentInPackage>
+        <PackageReleaseNotes>Initial PicoCfg.Gen release with source-generated binding for PicoCfg and bundled runtime helpers.</PackageReleaseNotes>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <NoPackageAnalysis>true</NoPackageAnalysis>
+        <GenerateDependencyFile>false</GenerateDependencyFile>
+        <AssemblyName>PicoCfg.Gen</AssemblyName>
+        <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_IncludeAnalyzerBuildOutput</TargetsForTfmSpecificContentInPackage>
     </PropertyGroup>
 
-    <ItemGroup Condition="'$(UseProjectReferences)' == 'true'">
-        <ProjectReference Include="..\PicoCfg\PicoCfg.csproj">
-            <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
-            <Private>false</Private>
-        </ProjectReference>
-    </ItemGroup>
-
-    <ItemGroup Condition="'$(UseProjectReferences)' != 'true'">
-        <PackageReference Include="PicoCfg" Version="$(Version)" />
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.5" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\PicoCfg.Gen.Generator\PicoCfg.Gen.Generator.csproj"
-                          OutputItemType="Analyzer"
-                          ReferenceOutputAssembly="false"
-                          PrivateAssets="all"
-                          SetTargetFramework="TargetFramework=netstandard2.0" />
-    </ItemGroup>
-
-    <ItemGroup>
+        <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+        <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
         <None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
     </ItemGroup>
 
-    <Target Name="_IncludePicoCfgGenAnalyzer">
+    <Target Name="_IncludeAnalyzerBuildOutput">
         <ItemGroup>
-            <TfmSpecificPackageFile Include="..\PicoCfg.Gen.Generator\bin\$(Configuration)\netstandard2.0\PicoCfg.Gen.Generator.dll">
+            <TfmSpecificPackageFile Include="$(TargetPath)">
                 <PackagePath>analyzers/dotnet/cs</PackagePath>
+            </TfmSpecificPackageFile>
+            <TfmSpecificPackageFile Include="..\PicoCfg\bin\$(Configuration)\net10.0\PicoCfg.dll">
+                <PackagePath>lib/net10.0</PackagePath>
+            </TfmSpecificPackageFile>
+            <TfmSpecificPackageFile Include="..\PicoCfg.Abs\bin\$(Configuration)\netstandard2.0\PicoCfg.Abs.dll">
+                <PackagePath>lib/net10.0</PackagePath>
             </TfmSpecificPackageFile>
         </ItemGroup>
     </Target>

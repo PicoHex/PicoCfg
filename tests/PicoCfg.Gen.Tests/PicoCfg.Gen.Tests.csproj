@@ -17,8 +17,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\src\PicoCfg.Gen\PicoCfg.Gen.csproj" />
-        <ProjectReference Include="..\..\src\PicoCfg.Gen.Generator\PicoCfg.Gen.Generator.csproj"
+        <ProjectReference Include="..\..\src\PicoCfg\PicoCfg.csproj" />
+        <ProjectReference Include="..\..\src\PicoCfg.Gen\PicoCfg.Gen.csproj"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="true"
                           SetTargetFramework="TargetFramework=netstandard2.0" />

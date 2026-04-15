@@ -5,6 +5,13 @@ using System.Diagnostics.CodeAnalysis;
 public class PicoCfgBindRuntimeTests
 {
     [Test]
+    public async Task PicoCfgBind_RuntimeLivesInPicoCfgAssembly()
+    {
+        await Assert.That(typeof(PicoCfgBind).Assembly).IsSameReferenceAs(typeof(Cfg).Assembly);
+        await Assert.That(typeof(PicoCfgBindRuntime).Assembly).IsSameReferenceAs(typeof(Cfg).Assembly);
+    }
+
+    [Test]
     public async Task Bind_BindsFlatScalarProperties()
     {
         await using var root = await Cfg

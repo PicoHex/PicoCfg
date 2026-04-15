@@ -10,7 +10,6 @@
     <Project Path="src/PicoCfg.Abs/PicoCfg.Abs.csproj" />
     <Project Path="src/PicoCfg/PicoCfg.csproj" />
     <Project Path="src/PicoCfg.Gen/PicoCfg.Gen.csproj" />
-    <Project Path="src/PicoCfg.Gen.Generator/PicoCfg.Gen.Generator.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PicoCfg.Tests/PicoCfg.Tests.csproj" />

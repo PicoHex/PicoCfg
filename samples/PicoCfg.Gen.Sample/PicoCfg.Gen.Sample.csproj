@@ -24,10 +24,10 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\src\PicoCfg.Gen\PicoCfg.Gen.csproj" />
-      <ProjectReference Include="..\..\src\PicoCfg.Gen.Generator\PicoCfg.Gen.Generator.csproj"
+      <ProjectReference Include="..\..\src\PicoCfg\PicoCfg.csproj" />
+      <ProjectReference Include="..\..\src\PicoCfg.Gen\PicoCfg.Gen.csproj"
                         OutputItemType="Analyzer"
-                        ReferenceOutputAssembly="true"
+                        ReferenceOutputAssembly="false"
                         SetTargetFramework="TargetFramework=netstandard2.0" />
     </ItemGroup>
 
