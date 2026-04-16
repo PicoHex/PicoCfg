@@ -4,10 +4,10 @@ internal sealed class DictionaryCfgProvider : ICfgProvider
 {
     private readonly Func<IEnumerable<KeyValuePair<string, string>>> _dataFactory;
     private readonly Func<object?>? _versionStampFactory;
-    private readonly CfgProviderState _state = new();
+    private readonly CfgProviderState _state;
 
     public DictionaryCfgProvider(Func<IEnumerable<KeyValuePair<string, string>>> dataFactory)
-        : this(dataFactory, null)
+        : this(dataFactory, null, CfgBuilder.CreateDefaultProviderState)
     {
     }
 
@@ -15,10 +15,22 @@ internal sealed class DictionaryCfgProvider : ICfgProvider
         Func<IEnumerable<KeyValuePair<string, string>>> dataFactory,
         Func<object?>? versionStampFactory
     )
+        : this(dataFactory, versionStampFactory, CfgBuilder.CreateDefaultProviderState)
+    {
+    }
+
+    internal DictionaryCfgProvider(
+        Func<IEnumerable<KeyValuePair<string, string>>> dataFactory,
+        Func<object?>? versionStampFactory,
+        Func<CfgProviderState> providerStateFactory
+    )
     {
         ArgumentNullException.ThrowIfNull(dataFactory);
+        ArgumentNullException.ThrowIfNull(providerStateFactory);
         _dataFactory = dataFactory;
         _versionStampFactory = versionStampFactory;
+        _state = providerStateFactory()
+            ?? throw new InvalidOperationException("The provider state factory returned null.");
     }
 
     public ICfgSnapshot Snapshot => _state.Snapshot;

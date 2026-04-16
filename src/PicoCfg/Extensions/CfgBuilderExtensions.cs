@@ -17,7 +17,14 @@ public static class CfgBuilderExtensions
         /// retained when the reparsed content is unchanged.
         /// </summary>
         public CfgBuilder Add(Func<Stream> streamFactory, Func<object?>? versionStampFactory = null) =>
-            builder.AddSource(new StreamCfgSource(streamFactory, versionStampFactory));
+            builder.AddSource(
+                new StreamCfgSource(
+                    streamFactory,
+                    versionStampFactory,
+                    builder.CreateStreamParser,
+                    builder.CreateProviderState
+                )
+            );
 
         /// <summary>
         /// Adds inline text content as a stream-based source.
@@ -41,7 +48,7 @@ public static class CfgBuilderExtensions
                 writer.Flush();
                 stream.Position = 0;
                 return stream;
-            }, versionStampFactory));
+            }, versionStampFactory, builder.CreateStreamParser, builder.CreateProviderState));
 
         /// <summary>
         /// Adds an in-memory dictionary source.
@@ -54,7 +61,10 @@ public static class CfgBuilderExtensions
         /// </summary>
         public CfgBuilder Add(IDictionary<string, string> configData,
             Func<object?>? versionStampFactory = null
-        ) => builder.AddSource(new DictionaryCfgSource(configData, versionStampFactory));
+        ) =>
+            builder.AddSource(
+                new DictionaryCfgSource(() => configData, versionStampFactory, builder.CreateProviderState)
+            );
 
         /// <summary>
         /// Adds a dictionary-backed factory source.
@@ -67,6 +77,9 @@ public static class CfgBuilderExtensions
         public CfgBuilder Add(
             Func<IEnumerable<KeyValuePair<string, string>>> dataFactory,
             Func<object?>? versionStampFactory = null
-        ) => builder.AddSource(new DictionaryCfgSource(dataFactory, versionStampFactory));
+        ) =>
+            builder.AddSource(
+                new DictionaryCfgSource(dataFactory, versionStampFactory, builder.CreateProviderState)
+            );
     }
 }

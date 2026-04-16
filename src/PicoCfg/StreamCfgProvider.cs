@@ -4,18 +4,44 @@ internal sealed class StreamCfgProvider : ICfgProvider
 {
     private readonly Func<Stream> _streamFactory;
     private readonly Func<object?>? _versionStampFactory;
-    private readonly CfgProviderState _state = new();
+    private readonly Func<Stream, CancellationToken, Task<Dictionary<string, string>>> _streamParser;
+    private readonly CfgProviderState _state;
 
     public StreamCfgProvider(Func<Stream> streamFactory)
-        : this(streamFactory, null)
+        : this(
+            streamFactory,
+            null,
+            CfgBuilder.DefaultStreamParser,
+            CfgBuilder.CreateDefaultProviderState
+        )
     {
     }
 
     public StreamCfgProvider(Func<Stream> streamFactory, Func<object?>? versionStampFactory)
+        : this(
+            streamFactory,
+            versionStampFactory,
+            CfgBuilder.DefaultStreamParser,
+            CfgBuilder.CreateDefaultProviderState
+        )
+    {
+    }
+
+    internal StreamCfgProvider(
+        Func<Stream> streamFactory,
+        Func<object?>? versionStampFactory,
+        Func<Stream, CancellationToken, Task<Dictionary<string, string>>> streamParser,
+        Func<CfgProviderState> providerStateFactory
+    )
     {
         ArgumentNullException.ThrowIfNull(streamFactory);
+        ArgumentNullException.ThrowIfNull(streamParser);
+        ArgumentNullException.ThrowIfNull(providerStateFactory);
         _streamFactory = streamFactory;
         _versionStampFactory = versionStampFactory;
+        _streamParser = streamParser;
+        _state = providerStateFactory()
+            ?? throw new InvalidOperationException("The provider state factory returned null.");
     }
 
     public ICfgSnapshot Snapshot => _state.Snapshot;
@@ -39,23 +65,6 @@ internal sealed class StreamCfgProvider : ICfgProvider
             ?? throw new InvalidOperationException("The stream factory returned null.");
 
         await using var _ = stream;
-        using var reader = new StreamReader(stream);
-
-        var newData = new Dictionary<string, string>();
-        while (await reader.ReadLineAsync(ct) is { } line)
-        {
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
-
-            var separatorIndex = line.IndexOf('=');
-            if (separatorIndex < 0)
-                continue;
-
-            var key = line[..separatorIndex].Trim();
-            var value = line[(separatorIndex + 1)..].Trim();
-            newData[key] = value;
-        }
-
-        return newData;
+        return await _streamParser(stream, ct);
     }
 }

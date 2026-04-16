@@ -7,17 +7,38 @@ internal sealed class CfgRoot : ICfgRoot
     private readonly Lock _disposeSyncRoot = new();
     private readonly Lock _syncRoot = new();
     private readonly SemaphoreSlim _reloadGate = new(1, 1);
+    private readonly Func<IReadOnlyList<ICfgSnapshot>, ICfgSnapshot> _snapshotComposer;
+    private readonly Func<CfgChangeSignal> _changeSignalFactory;
     private readonly List<ICfgProvider> _providers;
     private ICfgSnapshot[] _providerSnapshots;
     private ICfgSnapshot _snapshot;
-    private CfgChangeSignal _changeSignal = new();
+    private CfgChangeSignal _changeSignal;
     private Task? _disposeTask;
 
     public CfgRoot(IEnumerable<ICfgProvider> providers)
+        : this(
+            providers,
+            CfgBuilder.CreateDefaultSnapshotComposer(CfgBuilder.DefaultSnapshotFactory),
+            CfgBuilder.DefaultChangeSignalFactory
+        )
     {
+    }
+
+    internal CfgRoot(
+        IEnumerable<ICfgProvider> providers,
+        Func<IReadOnlyList<ICfgSnapshot>, ICfgSnapshot> snapshotComposer,
+        Func<CfgChangeSignal> changeSignalFactory
+    )
+    {
+        ArgumentNullException.ThrowIfNull(providers);
+        ArgumentNullException.ThrowIfNull(snapshotComposer);
+        ArgumentNullException.ThrowIfNull(changeSignalFactory);
+        _snapshotComposer = snapshotComposer;
+        _changeSignalFactory = changeSignalFactory;
         _providers = [.. providers];
         _providerSnapshots = [.. _providers.Select(static provider => provider.Snapshot)];
-        _snapshot = CfgSnapshotComposer.CreateSnapshot(_providerSnapshots);
+        _snapshot = _snapshotComposer(_providerSnapshots);
+        _changeSignal = _changeSignalFactory();
     }
 
     public ICfgSnapshot Snapshot
@@ -181,7 +202,7 @@ internal sealed class CfgRoot : ICfgRoot
             return null;
 
         // Compose once on the reload path so steady-state reads stay on the current published snapshot.
-        return CfgSnapshotComposer.CreateSnapshot(observedProviderSnapshots);
+        return _snapshotComposer(observedProviderSnapshots);
     }
 
     private bool PublishRootSnapshot(ICfgSnapshot[] providerSnapshots, ICfgSnapshot snapshot)
@@ -192,7 +213,7 @@ internal sealed class CfgRoot : ICfgRoot
             _providerSnapshots = providerSnapshots;
             _snapshot = snapshot;
             changedSignal = _changeSignal;
-            _changeSignal = new CfgChangeSignal();
+            _changeSignal = _changeSignalFactory();
         }
 
         changedSignal.NotifyChanged();
