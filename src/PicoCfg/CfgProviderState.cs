@@ -7,10 +7,29 @@ namespace PicoCfg;
 internal sealed class CfgProviderState
 {
     private readonly Lock _syncRoot = new();
+    private readonly Func<CfgChangeSignal> _changeSignalFactory;
+    private readonly Func<IReadOnlyDictionary<string, string>, ulong, CfgSnapshot> _snapshotFactory;
     private bool _hasAcceptedVersionStamp;
     private object? _acceptedVersionStamp;
     private CfgSnapshot _snapshot = CfgSnapshot.Empty;
-    private CfgChangeSignal _changeSignal = new();
+    private CfgChangeSignal _changeSignal;
+
+    public CfgProviderState()
+        : this(CfgBuilder.DefaultChangeSignalFactory, CfgBuilder.DefaultSnapshotFactory)
+    {
+    }
+
+    public CfgProviderState(
+        Func<CfgChangeSignal> changeSignalFactory,
+        Func<IReadOnlyDictionary<string, string>, ulong, CfgSnapshot> snapshotFactory
+    )
+    {
+        ArgumentNullException.ThrowIfNull(changeSignalFactory);
+        ArgumentNullException.ThrowIfNull(snapshotFactory);
+        _changeSignalFactory = changeSignalFactory;
+        _snapshotFactory = snapshotFactory;
+        _changeSignal = _changeSignalFactory();
+    }
 
     public ICfgSnapshot Snapshot
     {
@@ -61,9 +80,9 @@ internal sealed class CfgProviderState
             if (ConfigDataComparer.Equals(_snapshot, values, fingerprint))
                 return false;
 
-            _snapshot = new CfgSnapshot(values, fingerprint);
+            _snapshot = _snapshotFactory(values, fingerprint);
             changedSignal = _changeSignal;
-            _changeSignal = new CfgChangeSignal();
+            _changeSignal = _changeSignalFactory();
         }
 
         changedSignal.NotifyChanged();

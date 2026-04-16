@@ -4,11 +4,19 @@ internal static class CfgSnapshotComposer
 {
     public static ICfgSnapshot CreateSnapshot(IReadOnlyList<ICfgSnapshot> providerSnapshots)
     {
+        return CreateSnapshot(providerSnapshots, static (values, fingerprint) => new CfgSnapshot(values, fingerprint));
+    }
+
+    public static ICfgSnapshot CreateSnapshot(
+        IReadOnlyList<ICfgSnapshot> providerSnapshots,
+        Func<IReadOnlyDictionary<string, string>, ulong, CfgSnapshot> snapshotFactory
+    )
+    {
         return providerSnapshots.Count switch
         {
             0 => CfgSnapshot.Empty,
             1 => providerSnapshots[0],
-            _ => CreateMultiProviderSnapshot(providerSnapshots),
+            _ => CreateMultiProviderSnapshot(providerSnapshots, snapshotFactory),
         };
     }
 
@@ -26,16 +34,20 @@ internal static class CfgSnapshotComposer
         return true;
     }
 
-    private static ICfgSnapshot CreateMultiProviderSnapshot(IReadOnlyList<ICfgSnapshot> providerSnapshots)
+    private static ICfgSnapshot CreateMultiProviderSnapshot(
+        IReadOnlyList<ICfgSnapshot> providerSnapshots,
+        Func<IReadOnlyDictionary<string, string>, ulong, CfgSnapshot> snapshotFactory
+    )
     {
         // Flatten native snapshots on the reload path so steady-state reads stay on a single dictionary lookup.
-        return TryCreateFlattenedSnapshot(providerSnapshots, out var snapshot)
+        return TryCreateFlattenedSnapshot(providerSnapshots, snapshotFactory, out var snapshot)
             ? snapshot
             : CreateCompositeFallbackSnapshot(providerSnapshots);
     }
 
     private static bool TryCreateFlattenedSnapshot(
         IReadOnlyList<ICfgSnapshot> providerSnapshots,
+        Func<IReadOnlyDictionary<string, string>, ulong, CfgSnapshot> snapshotFactory,
         out ICfgSnapshot snapshot
     )
     {
@@ -60,7 +72,7 @@ internal static class CfgSnapshotComposer
                 mergedValues[key] = value;
         }
 
-        snapshot = new CfgSnapshot(mergedValues);
+        snapshot = snapshotFactory(mergedValues, ConfigDataComparer.ComputeFingerprint(mergedValues));
         return true;
     }
 
