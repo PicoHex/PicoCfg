@@ -7,7 +7,7 @@ public class DictionaryCfgTests
     {
         var calls = 0;
         var value = "before";
-        var provider = new DictionaryCfgProvider(
+        var provider = TestCfgFactory.CreateDictionaryProvider(
             () =>
             {
                 calls++;
@@ -30,7 +30,7 @@ public class DictionaryCfgTests
     public async Task DictionaryCfgProvider_ReloadAsync_WithNullVersionStampOnFirstLoad_DoesNotSkipInitialLoad()
     {
         var calls = 0;
-        var provider = new DictionaryCfgProvider(
+        var provider = TestCfgFactory.CreateDictionaryProvider(
             () =>
             {
                 calls++;
@@ -55,7 +55,7 @@ public class DictionaryCfgTests
     {
         var calls = 0;
         var value = "before";
-        var source = new DictionaryCfgSource(
+        var source = TestCfgFactory.CreateDictionarySource(
             () =>
             {
                 calls++;
@@ -77,7 +77,7 @@ public class DictionaryCfgTests
     public async Task DictionaryCfgSource_OpenAsync_WithNullVersionStamp_LoadsInitialSnapshot()
     {
         var calls = 0;
-        var source = new DictionaryCfgSource(
+        var source = TestCfgFactory.CreateDictionarySource(
             () =>
             {
                 calls++;
@@ -99,7 +99,7 @@ public class DictionaryCfgTests
     public async Task DictionaryCfgProvider_ReloadAsync_WithChangedVersionStampAndSameContent_KeepsSnapshot()
     {
         var stamp = 1;
-        var provider = new DictionaryCfgProvider(
+        var provider = TestCfgFactory.CreateDictionaryProvider(
             () => new Dictionary<string, string> { ["key"] = "value" },
             () => stamp
         );
@@ -119,7 +119,7 @@ public class DictionaryCfgTests
     {
         var calls = 0;
         var value = "before";
-        var provider = new DictionaryCfgProvider(
+        var provider = TestCfgFactory.CreateDictionaryProvider(
             () =>
             {
                 calls++;
@@ -144,7 +144,7 @@ public class DictionaryCfgTests
         var calls = 0;
         var stamp = 1;
         var value = "before";
-        var provider = new DictionaryCfgProvider(
+        var provider = TestCfgFactory.CreateDictionaryProvider(
             () =>
             {
                 calls++;
@@ -173,7 +173,7 @@ public class DictionaryCfgTests
     {
         var stamp = 1;
         var value = "before";
-        var provider = new DictionaryCfgProvider(
+        var provider = TestCfgFactory.CreateDictionaryProvider(
             () => new Dictionary<string, string> { ["key"] = value },
             () => stamp
         );
@@ -198,7 +198,7 @@ public class DictionaryCfgTests
             new KeyValuePair<string, string>("key", "first"),
             new KeyValuePair<string, string>("key", "value"),
         };
-        var provider = new DictionaryCfgProvider(() => items);
+        var provider = TestCfgFactory.CreateDictionaryProvider(() => items);
 
         var initialChanged = await provider.ReloadAsync();
         var originalSnapshot = provider.Snapshot;
@@ -224,7 +224,7 @@ public class DictionaryCfgTests
         var versionStampEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var allowVersionStampToExit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var snapshotReadCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        provider = new DictionaryCfgProvider(
+        provider = TestCfgFactory.CreateDictionaryProvider(
             () => new Dictionary<string, string> { ["key"] = "value" },
             () =>
             {
@@ -255,7 +255,7 @@ public class DictionaryCfgTests
     {
         var dataFactoryCalls = 0;
         var versionStampCalls = 0;
-        var provider = new DictionaryCfgProvider(
+        var provider = TestCfgFactory.CreateDictionaryProvider(
             () =>
             {
                 dataFactoryCalls++;
@@ -281,7 +281,7 @@ public class DictionaryCfgTests
     {
         var dataFactoryCalls = 0;
         CancellationTokenSource? cancellationSource = null;
-        var provider = new DictionaryCfgProvider(
+        var provider = TestCfgFactory.CreateDictionaryProvider(
             () =>
             {
                 dataFactoryCalls++;
@@ -311,7 +311,7 @@ public class DictionaryCfgTests
             second: new KeyValuePair<string, string>("key", "after"),
             onFirstYield: () => cts.Cancel()
         );
-        var provider = new DictionaryCfgProvider(() => sequence);
+        var provider = TestCfgFactory.CreateDictionaryProvider(() => sequence);
 
         await Assert.That(async () => await provider.ReloadAsync(cts.Token)).Throws<OperationCanceledException>();
         await Assert.That(provider.Snapshot).IsSameReferenceAs(CfgSnapshot.Empty);

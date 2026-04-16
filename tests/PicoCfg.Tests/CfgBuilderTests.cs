@@ -101,6 +101,171 @@ public class CfgBuilderTests
         await Assert.That(root.Snapshot.GetValue("factoryKey")).IsEqualTo("factoryValue");
     }
 
+    [Test]
+    public async Task BuildAsync_RepeatedBuilds_CreateIndependentBuiltInProviderStateInstances()
+    {
+        var builder = Cfg.CreateBuilder();
+        var value = "before";
+        var stamp = 1;
+
+        builder.Add(
+            () => new Dictionary<string, string> { ["key"] = value },
+            () => stamp
+        );
+
+        await using var firstRoot = await builder.BuildAsync();
+        await using var secondRoot = await builder.BuildAsync();
+
+        await Assert.That(firstRoot.Snapshot.GetValue("key")).IsEqualTo("before");
+        await Assert.That(secondRoot.Snapshot.GetValue("key")).IsEqualTo("before");
+
+        stamp = 2;
+        value = "after";
+
+        var firstChanged = await firstRoot.ReloadAsync();
+
+        await Assert.That(firstChanged).IsTrue();
+        await Assert.That(firstRoot.Snapshot.GetValue("key")).IsEqualTo("after");
+        await Assert.That(secondRoot.Snapshot.GetValue("key")).IsEqualTo("before");
+
+        var secondChanged = await secondRoot.ReloadAsync();
+
+        await Assert.That(secondChanged).IsTrue();
+        await Assert.That(secondRoot.Snapshot.GetValue("key")).IsEqualTo("after");
+    }
+
+    [Test]
+    public async Task BuildAsync_WithPublicStreamParser_UsesInjectedStreamParserForBuiltInSourcePath()
+    {
+        var parserCalls = 0;
+        var builder = Cfg
+            .CreateBuilder()
+            .WithStreamParser(async (stream, ct) =>
+            {
+                parserCalls++;
+                using var reader = new StreamReader(stream);
+                var content = await reader.ReadToEndAsync(ct);
+                return new Dictionary<string, string> { ["parsed"] = $"custom:{content}" };
+            });
+
+        builder.Add(() => new MemoryStream(Encoding.UTF8.GetBytes("not-valid-default-format")));
+
+        await using var root = await builder.BuildAsync();
+
+        await Assert.That(parserCalls).IsEqualTo(1);
+        await Assert.That(root.Snapshot.GetValue("parsed")).IsEqualTo("custom:not-valid-default-format");
+    }
+
+    [Test]
+    public async Task BuildAsync_WithWrappedPublicDefaultStreamParser_PreservesBuiltInParsingBehavior()
+    {
+        var parserCalls = 0;
+        var defaultParser = CfgBuilder.CreateDefaultStreamParser();
+        var builder = Cfg
+            .CreateBuilder()
+            .WithStreamParser(async (stream, ct) =>
+            {
+                parserCalls++;
+                return await defaultParser(stream, ct);
+            });
+
+        builder.Add(() => new MemoryStream(Encoding.UTF8.GetBytes(" key = a=b=c \ninvalid\n\nother = value ")));
+
+        await using var root = await builder.BuildAsync();
+
+        await Assert.That(parserCalls).IsEqualTo(1);
+        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("a=b=c");
+        await Assert.That(root.Snapshot.GetValue("other")).IsEqualTo("value");
+        await Assert.That(root.Snapshot.GetValue("invalid")).IsNull();
+    }
+
+    [Test]
+    public async Task BuildAsync_WithPublicSnapshotComposer_UsesCustomComposerForInitialAndReloadedSnapshots()
+    {
+        var initialSnapshot = new DelegatingSnapshot(path => path == "mode" ? "initial" : null);
+        var reloadedSnapshot = new DelegatingSnapshot(path => path == "mode" ? "reloaded" : null);
+        var composeCalls = 0;
+        var provider = new SequenceProvider(
+            new MockSnapshot("provider", "before"),
+            new MockSnapshot("provider", "after")
+        );
+        var builder = Cfg
+            .CreateBuilder()
+            .WithSnapshotComposer(_ => ++composeCalls == 1 ? initialSnapshot : reloadedSnapshot)
+            .AddSource(new StaticSource(provider));
+
+        await using var root = await builder.BuildAsync();
+
+        await Assert.That(root.Snapshot).IsSameReferenceAs(initialSnapshot);
+
+        var changed = await root.ReloadAsync();
+
+        await Assert.That(changed).IsTrue();
+        await Assert.That(composeCalls).IsEqualTo(2);
+        await Assert.That(root.Snapshot).IsSameReferenceAs(reloadedSnapshot);
+    }
+
+    [Test]
+    public async Task BuildAsync_WithWrappedPublicDefaultSnapshotComposer_PreservesDefaultCompositionBehavior()
+    {
+        var composeCalls = 0;
+        var defaultComposer = CfgBuilder.CreateDefaultSnapshotComposer();
+        var builder = Cfg
+            .CreateBuilder()
+            .WithSnapshotComposer(providerSnapshots =>
+            {
+                composeCalls++;
+                return defaultComposer(providerSnapshots);
+            });
+
+        builder.AddSource(new MockSource("shared", "first"));
+        builder.AddSource(new MockSource("other", "value"));
+        builder.AddSource(new MockSource("shared", "second"));
+
+        await using var root = await builder.BuildAsync();
+
+        await Assert.That(composeCalls).IsEqualTo(1);
+        await Assert.That(root.Snapshot.GetValue("shared")).IsEqualTo("second");
+        await Assert.That(root.Snapshot.GetValue("other")).IsEqualTo("value");
+    }
+
+    private sealed class StaticSource(ICfgProvider provider) : ICfgSource
+    {
+        public ValueTask<ICfgProvider> OpenAsync(CancellationToken ct = default) =>
+            ValueTask.FromResult(provider);
+    }
+
+    private sealed class SequenceProvider(params ICfgSnapshot[] snapshots) : ICfgProvider
+    {
+        private readonly IReadOnlyList<ICfgSnapshot> _snapshots = snapshots;
+        private int _index;
+
+        public ICfgSnapshot Snapshot { get; private set; } = snapshots[0];
+
+        public ValueTask<bool> ReloadAsync(CancellationToken ct = default)
+        {
+            if (_index >= _snapshots.Count - 1)
+                return ValueTask.FromResult(false);
+
+            _index++;
+            Snapshot = _snapshots[_index];
+            return ValueTask.FromResult(true);
+        }
+
+        public ICfgChangeSignal GetChangeSignal() => new MockChangeToken();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class DelegatingSnapshot(Func<string, string?> resolver) : ICfgSnapshot
+    {
+        public bool TryGetValue(string path, out string? value)
+        {
+            value = resolver(path);
+            return value is not null;
+        }
+    }
+
     private class MockSource(string key = "sourceKey", string value = "sourceValue") : ICfgSource
     {
         public ValueTask<ICfgProvider> OpenAsync(CancellationToken ct = default)

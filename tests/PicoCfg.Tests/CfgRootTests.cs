@@ -5,7 +5,7 @@ public class CfgRootTests
     [Test]
     public async Task Snapshot_WithNoProviders_ReturnsMissingValues()
     {
-        var root = new CfgRoot([]);
+        var root = TestCfgFactory.CreateRoot([]);
 
         await Assert.That(root.Snapshot.GetValue("key")).IsNull();
     }
@@ -14,7 +14,7 @@ public class CfgRootTests
     public async Task Snapshot_WithSingleProvider_ReturnsProviderValue()
     {
         var provider = new MockProvider([new Dictionary<string, string> { ["key"] = "value" }]);
-        var root = new CfgRoot([provider]);
+        var root = TestCfgFactory.CreateRoot([provider]);
 
         await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("value");
     }
@@ -24,7 +24,7 @@ public class CfgRootTests
     {
         var provider1 = new MockProvider([new Dictionary<string, string> { ["key"] = "first" }]);
         var provider2 = new MockProvider([new Dictionary<string, string> { ["key"] = "second" }]);
-        var root = new CfgRoot([provider1, provider2]);
+        var root = TestCfgFactory.CreateRoot([provider1, provider2]);
 
         await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("second");
     }
@@ -38,7 +38,7 @@ public class CfgRootTests
                 new Dictionary<string, string> { ["key"] = "after" },
             ]
         );
-        var root = new CfgRoot([provider]);
+        var root = TestCfgFactory.CreateRoot([provider]);
         var originalSnapshot = root.Snapshot;
 
         var changed = await root.ReloadAsync();
@@ -59,7 +59,7 @@ public class CfgRootTests
                 new Dictionary<string, string> { ["key"] = "same" },
             ]
         );
-        var root = new CfgRoot([provider]);
+        var root = TestCfgFactory.CreateRoot([provider]);
         var originalSnapshot = root.Snapshot;
 
         var changed = await root.ReloadAsync();
@@ -78,7 +78,7 @@ public class CfgRootTests
             ]
         );
         var provider2 = new FailingReloadProvider();
-        var root = new CfgRoot([provider1, provider2]);
+        var root = TestCfgFactory.CreateRoot([provider1, provider2]);
         var originalSnapshot = root.Snapshot;
         var changeSignal = root.GetChangeSignal();
 
@@ -96,7 +96,7 @@ public class CfgRootTests
     {
         var provider1 = new MockProvider([new Dictionary<string, string> { ["key"] = "same" }]);
         var provider2 = new FailingReloadProvider();
-        var root = new CfgRoot([provider1, provider2]);
+        var root = TestCfgFactory.CreateRoot([provider1, provider2]);
         var originalSnapshot = root.Snapshot;
         var changeSignal = root.GetChangeSignal();
 
@@ -112,7 +112,7 @@ public class CfgRootTests
         var coordination = new ParallelReloadCoordination(expectedConcurrentReloads: 2);
         var provider1 = new ConcurrentReloadProvider("first", "value1", coordination);
         var provider2 = new ConcurrentReloadProvider("second", "value2", coordination);
-        var root = new CfgRoot([provider1, provider2]);
+        var root = TestCfgFactory.CreateRoot([provider1, provider2]);
 
         var changed = await root.ReloadAsync();
 
@@ -128,7 +128,7 @@ public class CfgRootTests
     public async Task ReloadAsync_ConcurrentCalls_AreSerialized()
     {
         var provider = new GatedReloadProvider();
-        var root = new CfgRoot([provider]);
+        var root = TestCfgFactory.CreateRoot([provider]);
 
         var reload1 = root.ReloadAsync().AsTask();
         await provider.WaitForFirstEntryAsync();
@@ -150,7 +150,7 @@ public class CfgRootTests
                 new Dictionary<string, string> { ["key"] = "after" },
             ]
         );
-        var root = new CfgRoot([provider]);
+        var root = TestCfgFactory.CreateRoot([provider]);
 
         var changeSignal = root.GetChangeSignal();
         var changed = await root.ReloadAsync();
@@ -163,7 +163,7 @@ public class CfgRootTests
     public async Task GetChangeSignal_DoesNotChangeUntilRootSnapshotChanges()
     {
         var provider = new MockProvider([new Dictionary<string, string> { ["key"] = "value" }]);
-        var root = new CfgRoot([provider]);
+        var root = TestCfgFactory.CreateRoot([provider]);
 
         var changeSignal = root.GetChangeSignal();
         provider.NotifyChanged();
@@ -180,7 +180,7 @@ public class CfgRootTests
                 new Dictionary<string, string> { ["key"] = "after" },
             ]
         );
-        var root = new CfgRoot([provider]);
+        var root = TestCfgFactory.CreateRoot([provider]);
 
         var changeSignal1 = root.GetChangeSignal();
         var changed = await root.ReloadAsync();
@@ -196,7 +196,7 @@ public class CfgRootTests
     public async Task DisposeAsync_DisposesProviders()
     {
         var provider = new MockProvider([new Dictionary<string, string> { ["key"] = "value" }]);
-        var root = new CfgRoot([provider]);
+        var root = TestCfgFactory.CreateRoot([provider]);
 
         await root.DisposeAsync();
 
@@ -214,7 +214,7 @@ public class CfgRootTests
             [new Dictionary<string, string> { ["second"] = "value" }],
             disposeException: new InvalidOperationException("Second dispose failed.")
         );
-        var root = new CfgRoot([firstProvider, secondProvider]);
+        var root = TestCfgFactory.CreateRoot([firstProvider, secondProvider]);
 
         var dispose = async () => await root.DisposeAsync();
 
@@ -230,7 +230,7 @@ public class CfgRootTests
             [new Dictionary<string, string> { ["key"] = "value" }],
             disposeException: new InvalidOperationException("Dispose failed.")
         );
-        var root = new CfgRoot([provider]);
+        var root = TestCfgFactory.CreateRoot([provider]);
 
         await Assert.That(async () => await root.DisposeAsync()).Throws<InvalidOperationException>();
         await Assert.That(provider.DisposeCalled).IsTrue();
@@ -247,7 +247,7 @@ public class CfgRootTests
             ]
         );
         var provider2 = new CancelingReloadProvider(cts);
-        var root = new CfgRoot([provider1, provider2]);
+        var root = TestCfgFactory.CreateRoot([provider1, provider2]);
         var originalSnapshot = root.Snapshot;
         var changeSignal = root.GetChangeSignal();
 
@@ -265,7 +265,7 @@ public class CfgRootTests
     {
         var provider1 = new DeferredPublishingProvider("key", "before", "after");
         var provider2 = new FailingReloadProvider();
-        var root = new CfgRoot([provider1, provider2]);
+        var root = TestCfgFactory.CreateRoot([provider1, provider2]);
         var originalSnapshot = root.Snapshot;
 
         var reloadTask = root.ReloadAsync().AsTask();
@@ -286,7 +286,7 @@ public class CfgRootTests
         var expected = new InvalidOperationException("Synchronous start failure.");
         var provider1 = new DeferredFailingProvider(new ApplicationException("Deferred reload failure."));
         var provider2 = new ThrowingReloadProvider(expected);
-        var root = new CfgRoot([provider1, provider2]);
+        var root = TestCfgFactory.CreateRoot([provider1, provider2]);
 
         var reloadTask = root.ReloadAsync().AsTask();
         await provider1.WaitForReloadStartedAsync();
@@ -300,7 +300,7 @@ public class CfgRootTests
     public async Task DisposeAsync_ConcurrentCalls_DisposeProvidersOnlyOnce()
     {
         var provider = new CountingDisposeProvider();
-        var root = new CfgRoot([provider]);
+        var root = TestCfgFactory.CreateRoot([provider]);
 
         await Task.WhenAll(root.DisposeAsync().AsTask(), root.DisposeAsync().AsTask(), root.DisposeAsync().AsTask());
 
@@ -317,7 +317,7 @@ public class CfgRootTests
             ]
         );
         var provider2 = new MockProvider([new Dictionary<string, string> { ["shared"] = "second" }]);
-        var root = new CfgRoot([provider1, provider2]);
+        var root = TestCfgFactory.CreateRoot([provider1, provider2]);
         var originalSnapshot = root.Snapshot;
 
         var changed = await root.ReloadAsync();
@@ -332,7 +332,7 @@ public class CfgRootTests
     {
         var provider1 = new StaticProvider(new DelegatingSnapshot(path => path == "shared" ? "first" : null));
         var provider2 = new StaticProvider(new DelegatingSnapshot(path => path == "shared" ? "second" : null));
-        var root = new CfgRoot([provider1, provider2]);
+        var root = TestCfgFactory.CreateRoot([provider1, provider2]);
 
         await Assert.That(root.Snapshot.GetValue("shared")).IsEqualTo("second");
     }

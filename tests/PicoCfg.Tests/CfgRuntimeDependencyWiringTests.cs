@@ -3,54 +3,6 @@ namespace PicoCfg.Tests;
 public class CfgRuntimeDependencyWiringTests
 {
     [Test]
-    public async Task BuildAsync_WithCustomStreamParser_UsesInjectedStreamParserForBuiltInSourcePath()
-    {
-        var parserCalls = 0;
-        var builder = Cfg
-            .CreateBuilder()
-            .WithStreamParser(async (stream, ct) =>
-            {
-                parserCalls++;
-                using var reader = new StreamReader(stream);
-                var content = await reader.ReadToEndAsync(ct);
-                return new Dictionary<string, string> { ["parsed"] = $"custom:{content}" };
-            });
-
-        builder.Add(() => new MemoryStream(Encoding.UTF8.GetBytes("not-valid-default-format")));
-
-        await using var root = await builder.BuildAsync();
-
-        await Assert.That(parserCalls).IsEqualTo(1);
-        await Assert.That(root.Snapshot.GetValue("parsed")).IsEqualTo("custom:not-valid-default-format");
-    }
-
-    [Test]
-    public async Task BuildAsync_WithInjectedSnapshotComposer_UsesCustomComposerForInitialAndReloadedSnapshots()
-    {
-        var initialSnapshot = new DelegatingSnapshot(path => path == "mode" ? "initial" : null);
-        var reloadedSnapshot = new DelegatingSnapshot(path => path == "mode" ? "reloaded" : null);
-        var composeCalls = 0;
-        var provider = new SequenceProvider(
-            new CfgSnapshot(new Dictionary<string, string> { ["provider"] = "before" }),
-            new CfgSnapshot(new Dictionary<string, string> { ["provider"] = "after" })
-        );
-        var builder = Cfg
-            .CreateBuilder()
-            .WithSnapshotComposer(_ => ++composeCalls == 1 ? initialSnapshot : reloadedSnapshot)
-            .AddSource(new StaticSource(provider));
-
-        await using var root = await builder.BuildAsync();
-
-        await Assert.That(root.Snapshot).IsSameReferenceAs(initialSnapshot);
-
-        var changed = await root.ReloadAsync();
-
-        await Assert.That(changed).IsTrue();
-        await Assert.That(composeCalls).IsEqualTo(2);
-        await Assert.That(root.Snapshot).IsSameReferenceAs(reloadedSnapshot);
-    }
-
-    [Test]
     public async Task BuildAsync_WithInjectedChangeSignalFactory_UsesCustomRootSignals()
     {
         var initialSignal = new CfgChangeSignal();
@@ -100,10 +52,7 @@ public class CfgRuntimeDependencyWiringTests
         var builder = Cfg
             .CreateBuilder()
             .WithProviderStateFactory(() =>
-                new CfgProviderState(
-                    CfgBuilder.DefaultChangeSignalFactory,
-                    (_, _) => publishedSnapshot
-                )
+                TestCfgFactory.CreateProviderState(snapshotFactory: (_, _) => publishedSnapshot)
             );
 
         builder.Add(new Dictionary<string, string> { ["key"] = "from-source" });
@@ -121,10 +70,10 @@ public class CfgRuntimeDependencyWiringTests
         var initialSignal = new CfgChangeSignal();
         var nextSignal = new CfgChangeSignal();
         var signals = new Queue<CfgChangeSignal>([initialSignal, nextSignal]);
-        var provider = new DictionaryCfgProvider(
+        var provider = TestCfgFactory.CreateDictionaryProvider(
             () => new Dictionary<string, string> { ["key"] = "from-source" },
             versionStampFactory: null,
-            () => new CfgProviderState(() => signals.Dequeue(), (_, _) => publishedSnapshot)
+            TestCfgFactory.CreateProviderState(() => signals.Dequeue(), (_, _) => publishedSnapshot)
         );
 
         await Assert.That(provider.GetChangeSignal()).IsSameReferenceAs(initialSignal);
@@ -164,14 +113,5 @@ public class CfgRuntimeDependencyWiringTests
         public ICfgChangeSignal GetChangeSignal() => new CfgChangeSignal();
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
-
-    private sealed class DelegatingSnapshot(Func<string, string?> resolver) : ICfgSnapshot
-    {
-        public bool TryGetValue(string path, out string? value)
-        {
-            value = resolver(path);
-            return value is not null;
-        }
     }
 }
