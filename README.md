@@ -283,6 +283,25 @@ public sealed class CustomSource : ICfgSource
 }
 ```
 
+## Custom Builder Composition
+
+`CfgBuilder` also exposes a small builder-centric composition surface for the built-in source pipeline.
+Use `WithStreamParser(...)` when you want to customize how built-in text and stream sources parse content, and use `WithSnapshotComposer(...)` when you want to customize how provider snapshots are composed into the published root snapshot.
+
+If you want to decorate the default behavior instead of replacing it outright, wrap the public default helpers:
+
+```csharp
+var defaultParser = CfgBuilder.CreateDefaultStreamParser();
+var defaultComposer = CfgBuilder.CreateDefaultSnapshotComposer();
+
+var builder = Cfg
+    .CreateBuilder()
+    .WithStreamParser((stream, ct) => defaultParser(stream, ct))
+    .WithSnapshotComposer(providerSnapshots => defaultComposer(providerSnapshots));
+```
+
+These hooks are intentionally narrow. Lower-level runtime composition types stay internal, and custom provider/source abstractions still belong in `PicoCfg.Abs`.
+
 ## Native AOT
 
 PicoCfg is designed to stay friendly to Native AOT scenarios.
