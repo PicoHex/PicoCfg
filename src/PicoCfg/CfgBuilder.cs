@@ -48,19 +48,24 @@ public sealed class CfgBuilder
         CfgProviderState
     >? _providerStateFactoryOverride;
 
-    internal static Func<
-        Stream,
-        CancellationToken,
-        Task<Dictionary<string, string>>
-    > DefaultStreamParser => s_defaultStreamParser;
+    /// <summary>
+    /// Returns the built-in line-based <c>key=value</c> parser used by PicoCfg's text and stream sources.
+    /// Use this when you want to decorate the default parsing behavior instead of replacing it outright.
+    /// </summary>
+    public static Func<Stream, CancellationToken, Task<Dictionary<string, string>>> CreateDefaultStreamParser()
+    {
+        return s_defaultStreamParser;
+    }
 
-    internal static Func<CfgChangeSignal> DefaultChangeSignalFactory => s_defaultChangeSignalFactory;
+    internal static Func<CfgChangeSignal> CreateDefaultChangeSignalFactory()
+    {
+        return s_defaultChangeSignalFactory;
+    }
 
-    internal static Func<
-        IReadOnlyDictionary<string, string>,
-        ulong,
-        CfgSnapshot
-    > DefaultSnapshotFactory => s_defaultSnapshotFactory;
+    internal static Func<IReadOnlyDictionary<string, string>, ulong, CfgSnapshot> CreateDefaultSnapshotFactory()
+    {
+        return s_defaultSnapshotFactory;
+    }
 
     /// <summary>
     /// Adds a source to the builder.
@@ -89,7 +94,7 @@ public sealed class CfgBuilder
                 providers.Add(provider);
             }
 
-            return new CfgRoot(providers, CreateSnapshotComposer(), _changeSignalFactory);
+            return CreateRoot(providers);
         }
         catch
         {
@@ -103,6 +108,47 @@ public sealed class CfgBuilder
         CancellationToken,
         Task<Dictionary<string, string>>
     > CreateStreamParser() => _streamParser;
+
+    internal ICfgRoot CreateRoot(IEnumerable<ICfgProvider> providers)
+    {
+        ArgumentNullException.ThrowIfNull(providers);
+        return new CfgRoot(providers, CreateSnapshotComposer(), _changeSignalFactory);
+    }
+
+    internal ICfgSource CreateStreamSource(Func<Stream> streamFactory, Func<object?>? versionStampFactory = null)
+    {
+        ArgumentNullException.ThrowIfNull(streamFactory);
+
+        return new StreamCfgSource(() =>
+            new StreamCfgProvider(
+                streamFactory,
+                versionStampFactory,
+                CreateStreamParser(),
+                CreateProviderState()
+            )
+        );
+    }
+
+    internal ICfgSource CreateDictionarySource(
+        IDictionary<string, string> configData,
+        Func<object?>? versionStampFactory = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(configData);
+        return CreateDictionarySource(() => configData, versionStampFactory);
+    }
+
+    internal ICfgSource CreateDictionarySource(
+        Func<IEnumerable<KeyValuePair<string, string>>> dataFactory,
+        Func<object?>? versionStampFactory = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(dataFactory);
+
+        return new DictionaryCfgSource(() =>
+            new DictionaryCfgProvider(dataFactory, versionStampFactory, CreateProviderState())
+        );
+    }
 
     internal CfgProviderState CreateProviderState()
     {
@@ -125,7 +171,11 @@ public sealed class CfgBuilder
             : providerSnapshots => snapshotComposerOverride(providerSnapshots, snapshotFactory);
     }
 
-    internal CfgBuilder WithStreamParser(
+    /// <summary>
+    /// Replaces the parser used by PicoCfg's built-in text and stream source paths.
+    /// The supplied parser is called on each materialization that requires parsing source content.
+    /// </summary>
+    public CfgBuilder WithStreamParser(
         Func<Stream, CancellationToken, Task<Dictionary<string, string>>> streamParser
     )
     {
@@ -150,7 +200,11 @@ public sealed class CfgBuilder
         return this;
     }
 
-    internal CfgBuilder WithSnapshotComposer(
+    /// <summary>
+    /// Replaces the snapshot composer used to publish the root snapshot from the current provider snapshots.
+    /// Use <see cref="CreateDefaultSnapshotComposer()"/> when you want to wrap the built-in composition behavior.
+    /// </summary>
+    public CfgBuilder WithSnapshotComposer(
         Func<IReadOnlyList<ICfgSnapshot>, ICfgSnapshot> snapshotComposer
     )
     {
@@ -192,8 +246,14 @@ public sealed class CfgBuilder
         return this;
     }
 
-    internal static CfgProviderState CreateDefaultProviderState() =>
-        new(DefaultChangeSignalFactory, DefaultSnapshotFactory);
+    /// <summary>
+    /// Returns the built-in snapshot composer used by PicoCfg roots when no custom composer is supplied.
+    /// Use this when you want to decorate the default provider-snapshot composition behavior.
+    /// </summary>
+    public static Func<IReadOnlyList<ICfgSnapshot>, ICfgSnapshot> CreateDefaultSnapshotComposer()
+    {
+        return CreateDefaultSnapshotComposer(s_defaultSnapshotFactory);
+    }
 
     internal static Func<IReadOnlyList<ICfgSnapshot>, ICfgSnapshot> CreateDefaultSnapshotComposer(
         Func<IReadOnlyDictionary<string, string>, ulong, CfgSnapshot> snapshotFactory

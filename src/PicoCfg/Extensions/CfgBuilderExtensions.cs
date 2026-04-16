@@ -17,14 +17,7 @@ public static class CfgBuilderExtensions
         /// retained when the reparsed content is unchanged.
         /// </summary>
         public CfgBuilder Add(Func<Stream> streamFactory, Func<object?>? versionStampFactory = null) =>
-            builder.AddSource(
-                new StreamCfgSource(
-                    streamFactory,
-                    versionStampFactory,
-                    builder.CreateStreamParser,
-                    builder.CreateProviderState
-                )
-            );
+            builder.AddSource(builder.CreateStreamSource(streamFactory, versionStampFactory));
 
         /// <summary>
         /// Adds inline text content as a stream-based source.
@@ -40,15 +33,24 @@ public static class CfgBuilderExtensions
             Encoding? encoding = null,
             Func<object?>? versionStampFactory = null
         ) =>
-            builder.AddSource(new StreamCfgSource(() =>
-            {
-                var stream = new MemoryStream();
-                using var writer = new StreamWriter(stream, encoding ?? Encoding.UTF8, leaveOpen: true);
-                writer.Write(configContent);
-                writer.Flush();
-                stream.Position = 0;
-                return stream;
-            }, versionStampFactory, builder.CreateStreamParser, builder.CreateProviderState));
+            builder.AddSource(
+                builder.CreateStreamSource(
+                    () =>
+                    {
+                        var stream = new MemoryStream();
+                        using var writer = new StreamWriter(
+                            stream,
+                            encoding ?? Encoding.UTF8,
+                            leaveOpen: true
+                        );
+                        writer.Write(configContent);
+                        writer.Flush();
+                        stream.Position = 0;
+                        return stream;
+                    },
+                    versionStampFactory
+                )
+            );
 
         /// <summary>
         /// Adds an in-memory dictionary source.
@@ -61,10 +63,7 @@ public static class CfgBuilderExtensions
         /// </summary>
         public CfgBuilder Add(IDictionary<string, string> configData,
             Func<object?>? versionStampFactory = null
-        ) =>
-            builder.AddSource(
-                new DictionaryCfgSource(() => configData, versionStampFactory, builder.CreateProviderState)
-            );
+        ) => builder.AddSource(builder.CreateDictionarySource(configData, versionStampFactory));
 
         /// <summary>
         /// Adds a dictionary-backed factory source.
@@ -77,9 +76,6 @@ public static class CfgBuilderExtensions
         public CfgBuilder Add(
             Func<IEnumerable<KeyValuePair<string, string>>> dataFactory,
             Func<object?>? versionStampFactory = null
-        ) =>
-            builder.AddSource(
-                new DictionaryCfgSource(dataFactory, versionStampFactory, builder.CreateProviderState)
-            );
+        ) => builder.AddSource(builder.CreateDictionarySource(dataFactory, versionStampFactory));
     }
 }

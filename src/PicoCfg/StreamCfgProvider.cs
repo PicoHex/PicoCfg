@@ -7,41 +7,20 @@ internal sealed class StreamCfgProvider : ICfgProvider
     private readonly Func<Stream, CancellationToken, Task<Dictionary<string, string>>> _streamParser;
     private readonly CfgProviderState _state;
 
-    public StreamCfgProvider(Func<Stream> streamFactory)
-        : this(
-            streamFactory,
-            null,
-            CfgBuilder.DefaultStreamParser,
-            CfgBuilder.CreateDefaultProviderState
-        )
-    {
-    }
-
-    public StreamCfgProvider(Func<Stream> streamFactory, Func<object?>? versionStampFactory)
-        : this(
-            streamFactory,
-            versionStampFactory,
-            CfgBuilder.DefaultStreamParser,
-            CfgBuilder.CreateDefaultProviderState
-        )
-    {
-    }
-
     internal StreamCfgProvider(
         Func<Stream> streamFactory,
         Func<object?>? versionStampFactory,
         Func<Stream, CancellationToken, Task<Dictionary<string, string>>> streamParser,
-        Func<CfgProviderState> providerStateFactory
+        CfgProviderState state
     )
     {
         ArgumentNullException.ThrowIfNull(streamFactory);
         ArgumentNullException.ThrowIfNull(streamParser);
-        ArgumentNullException.ThrowIfNull(providerStateFactory);
+        ArgumentNullException.ThrowIfNull(state);
         _streamFactory = streamFactory;
         _versionStampFactory = versionStampFactory;
         _streamParser = streamParser;
-        _state = providerStateFactory()
-            ?? throw new InvalidOperationException("The provider state factory returned null.");
+        _state = state;
     }
 
     public ICfgSnapshot Snapshot => _state.Snapshot;

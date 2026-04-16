@@ -14,11 +14,6 @@ internal sealed class CfgProviderState
     private CfgSnapshot _snapshot = CfgSnapshot.Empty;
     private CfgChangeSignal _changeSignal;
 
-    public CfgProviderState()
-        : this(CfgBuilder.DefaultChangeSignalFactory, CfgBuilder.DefaultSnapshotFactory)
-    {
-    }
-
     public CfgProviderState(
         Func<CfgChangeSignal> changeSignalFactory,
         Func<IReadOnlyDictionary<string, string>, ulong, CfgSnapshot> snapshotFactory

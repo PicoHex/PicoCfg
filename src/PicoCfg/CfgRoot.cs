@@ -15,15 +15,6 @@ internal sealed class CfgRoot : ICfgRoot
     private CfgChangeSignal _changeSignal;
     private Task? _disposeTask;
 
-    public CfgRoot(IEnumerable<ICfgProvider> providers)
-        : this(
-            providers,
-            CfgBuilder.CreateDefaultSnapshotComposer(CfgBuilder.DefaultSnapshotFactory),
-            CfgBuilder.DefaultChangeSignalFactory
-        )
-    {
-    }
-
     internal CfgRoot(
         IEnumerable<ICfgProvider> providers,
         Func<IReadOnlyList<ICfgSnapshot>, ICfgSnapshot> snapshotComposer,

@@ -2,11 +2,6 @@ namespace PicoCfg;
 
 internal static class CfgSnapshotComposer
 {
-    public static ICfgSnapshot CreateSnapshot(IReadOnlyList<ICfgSnapshot> providerSnapshots)
-    {
-        return CreateSnapshot(providerSnapshots, static (values, fingerprint) => new CfgSnapshot(values, fingerprint));
-    }
-
     public static ICfgSnapshot CreateSnapshot(
         IReadOnlyList<ICfgSnapshot> providerSnapshots,
         Func<IReadOnlyDictionary<string, string>, ulong, CfgSnapshot> snapshotFactory
