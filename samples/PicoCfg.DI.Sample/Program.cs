@@ -36,7 +36,28 @@ Console.WriteLine($"Singleton Name = {app.Name}, Count = {app.Count}");
 Console.WriteLine($"Scoped Name = {request1.Name}, Count = {request1.Count}");
 Console.WriteLine($"Scoped Same Instance = {ReferenceEquals(request1, request2)}");
 
-return 0;
+AssertEqual("Snapshot App:Name", snapshot.GetValue("App:Name"), "PicoCfg.DI");
+AssertEqual("Singleton Name", app.Name, "PicoCfg.DI");
+AssertEqual("Singleton Count", app.Count, 42);
+AssertEqual("Scoped Name", request1.Name, "Scoped Request");
+AssertEqual("Scoped Count", request1.Count, 7);
+AssertTrue("Scoped Same Instance", ReferenceEquals(request1, request2));
+
+static void AssertEqual<T>(string name, T actual, T expected)
+{
+    if (!EqualityComparer<T>.Default.Equals(actual, expected))
+    {
+        throw new InvalidOperationException($"{name} mismatch. Expected '{expected}' but got '{actual}'.");
+    }
+}
+
+static void AssertTrue(string name, bool condition)
+{
+    if (!condition)
+    {
+        throw new InvalidOperationException($"{name} expected true.");
+    }
+}
 
 public sealed class AppSettings
 {
