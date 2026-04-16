@@ -80,7 +80,7 @@ jobs:
       - name: Run PicoCfg.DI tests
         run: dotnet test --project tests/PicoCfg.DI.Tests/PicoCfg.DI.Tests.csproj --configuration Release --no-build --verbosity normal --timeout 120s --no-progress --no-ansi -p:UseProjectReferences=true
 
-      - name: Validate PicoCfg.Gen package path
+      - name: Pack CI packages for package-consumer validation
         shell: bash
         run: |
           rm -rf ./artifacts/ci-nupkg
@@ -190,86 +190,35 @@ jobs:
             --configuration Release \
             --no-build
 
-      - name: Smoke test PicoCfg.DI package consumer
+      - name: Validate PicoCfg.DI package sample path
         if: matrix.logical-target == 'linux-x64'
         shell: bash
         run: |
-          rm -rf ./artifacts/ci-smoke/PicoCfg.DI.Consumer
-          mkdir -p ./artifacts/ci-smoke/PicoCfg.DI.Consumer
+          rm -rf samples/PicoCfg.DI.Sample/bin samples/PicoCfg.DI.Sample/obj
+          rm -rf ./artifacts/ci-packages/di-sample
+          mkdir -p ./artifacts/ci-packages/di-sample
 
-          dotnet new console \
-            --output ./artifacts/ci-smoke/PicoCfg.DI.Consumer \
-            --framework net10.0 \
-            --force
-
-          cat > ./artifacts/ci-smoke/PicoCfg.DI.Consumer/PicoCfg.DI.Consumer.csproj <<'EOF'
-          <Project Sdk="Microsoft.NET.Sdk">
-            <PropertyGroup>
-              <OutputType>Exe</OutputType>
-              <TargetFramework>net10.0</TargetFramework>
-              <ImplicitUsings>enable</ImplicitUsings>
-              <Nullable>enable</Nullable>
-            </PropertyGroup>
-
-            <ItemGroup>
-              <PackageReference Include="PicoCfg.DI" Version="0.0.0-dev" />
-              <PackageReference Include="PicoCfg.Gen" Version="0.0.0-dev" />
-            </ItemGroup>
-          </Project>
-          EOF
-
-          cat > ./artifacts/ci-smoke/PicoCfg.DI.Consumer/Program.cs <<'EOF'
-          using PicoCfg;
-          using PicoCfg.DI;
-          using PicoCfg.Extensions;
-          using PicoDI;
-          using PicoDI.Abs;
-
-          await using var root = await Cfg
-              .CreateBuilder()
-              .Add(new Dictionary<string, string>
-              {
-                  ["App:Name"] = "PicoCfg.DI",
-                  ["App:Count"] = "42",
-              })
-              .BuildAsync();
-
-          await using var container = new SvcContainer(autoConfigureFromGenerator: false);
-
-          container
-              .RegisterCfgRoot(root)
-              .RegisterCfgSingleton<AppSettings>("App");
-
-          using var scope = container.CreateScope();
-          var settings = scope.GetService<AppSettings>();
-
-          if (settings.Name != "PicoCfg.DI" || settings.Count != 42)
-          {
-              Environment.ExitCode = 1;
-              return;
-          }
-
-          Environment.ExitCode = 0;
-
-          public sealed class AppSettings
-          {
-              public string? Name { get; set; }
-              public int Count { get; set; }
-          }
-          EOF
-
-          dotnet restore ./artifacts/ci-smoke/PicoCfg.DI.Consumer/PicoCfg.DI.Consumer.csproj \
+          dotnet restore samples/PicoCfg.DI.Sample/PicoCfg.DI.Sample.csproj \
             --source https://api.nuget.org/v3/index.json \
             --source "$GITHUB_WORKSPACE/artifacts/ci-nupkg" \
-            -p:RestorePackagesPath="$GITHUB_WORKSPACE/artifacts/ci-packages/consumer"
+            -p:UseProjectReferences=false \
+            -p:RestorePackagesPath="$GITHUB_WORKSPACE/artifacts/ci-packages/di-sample"
 
-          dotnet build ./artifacts/ci-smoke/PicoCfg.DI.Consumer/PicoCfg.DI.Consumer.csproj \
-            --configuration Release \
-            --no-restore
+          grep -q '"PicoCfg.DI/0.0.0-dev"' samples/PicoCfg.DI.Sample/obj/project.assets.json
+          grep -q '"PicoCfg.Gen/0.0.0-dev"' samples/PicoCfg.DI.Sample/obj/project.assets.json
+          grep -q '"PicoCfg.DI >= 0.0.0-dev"' samples/PicoCfg.DI.Sample/obj/project.assets.json
+          grep -q '"PicoCfg.Gen >= 0.0.0-dev"' samples/PicoCfg.DI.Sample/obj/project.assets.json
+          grep -q '"projectReferences": {}' samples/PicoCfg.DI.Sample/obj/project.assets.json
 
-          dotnet run --project ./artifacts/ci-smoke/PicoCfg.DI.Consumer/PicoCfg.DI.Consumer.csproj \
+          dotnet build samples/PicoCfg.DI.Sample/PicoCfg.DI.Sample.csproj \
             --configuration Release \
-            --no-build
+            --no-restore \
+            -p:UseProjectReferences=false
+
+          dotnet run --project samples/PicoCfg.DI.Sample/PicoCfg.DI.Sample.csproj \
+            --configuration Release \
+            --no-build \
+            -p:UseProjectReferences=false
 
       - name: Validate AOT publish path
         run: dotnet publish samples/PicoCfg.Sample/PicoCfg.Sample.csproj --configuration Release --runtime ${{ matrix.rid }} --self-contained -p:UseProjectReferences=true
