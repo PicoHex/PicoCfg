@@ -21,21 +21,24 @@ await using var root = await Cfg
 await using var container = new SvcContainer(autoConfigureFromGenerator: false);
 
 container
-    .RegisterCfgRoot(root)
-    .RegisterCfgSingleton<AppSettings>("App")
-    .RegisterCfgScoped<RequestSettings>("Request");
+    .RegisterPicoCfg(root)
+    .RegisterPicoCfgSingleton<AppSettings>("App")
+    .RegisterPicoCfgScoped<RequestSettings>("Request");
 
 using var scope = container.CreateScope();
+var cfg = scope.GetService<ICfg>();
 var snapshot = scope.GetService<ICfgSnapshot>();
 var app = scope.GetService<AppSettings>();
 var request1 = scope.GetService<RequestSettings>();
 var request2 = scope.GetService<RequestSettings>();
 
+Console.WriteLine($"Cfg App:Name = {cfg.GetValue("App:Name")}");
 Console.WriteLine($"Snapshot App:Name = {snapshot.GetValue("App:Name")}");
 Console.WriteLine($"Singleton Name = {app.Name}, Count = {app.Count}");
 Console.WriteLine($"Scoped Name = {request1.Name}, Count = {request1.Count}");
 Console.WriteLine($"Scoped Same Instance = {ReferenceEquals(request1, request2)}");
 
+AssertEqual("Cfg App:Name", cfg.GetValue("App:Name"), "PicoCfg.DI");
 AssertEqual("Snapshot App:Name", snapshot.GetValue("App:Name"), "PicoCfg.DI");
 AssertEqual("Singleton Name", app.Name, "PicoCfg.DI");
 AssertEqual("Singleton Count", app.Count, 42);
