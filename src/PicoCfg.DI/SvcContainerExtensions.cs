@@ -5,25 +5,58 @@ using PicoDI.Abs;
 
 public static class SvcContainerExtensions
 {
+    public static ISvcContainer RegisterPicoCfg(this ISvcContainer container, ICfgRuntime runtime)
+    {
+        ArgumentNullException.ThrowIfNull(container);
+        ArgumentNullException.ThrowIfNull(runtime);
+
+        return container
+            .RegisterSingle<ICfgRuntime>(runtime)
+            .RegisterTransient<ICfgSnapshot>(static scope => scope.GetService<ICfgRuntime>().Current)
+            .RegisterTransient<ICfg>(static scope => scope.GetService<ICfgRuntime>().Current);
+    }
+
+    public static ISvcContainer RegisterPicoCfg(this ISvcContainer container, ICfgSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(container);
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        return container
+            .RegisterSingle<ICfgSnapshot>(snapshot)
+            .RegisterSingle<ICfg>(snapshot);
+    }
+
     public static ISvcContainer RegisterCfgRoot(this ISvcContainer container, ICfgRoot root)
         => container
-            .RegisterSingle<ICfgRoot>(root)
-            .RegisterTransient<ICfgSnapshot>(static scope => scope.GetService<ICfgRoot>().Snapshot);
+            .RegisterPicoCfg((ICfgRuntime)root)
+            .RegisterSingle<ICfgRoot>(root);
 
     public static ISvcContainer RegisterCfgSnapshot(this ISvcContainer container, ICfgSnapshot snapshot)
-        => container.RegisterSingle<ICfgSnapshot>(snapshot);
+        => container.RegisterPicoCfg(snapshot);
 
-    public static ISvcContainer RegisterCfgTransient<T>(this ISvcContainer container, string? section = null)
+    public static ISvcContainer RegisterPicoCfgTransient<T>(this ISvcContainer container, string? section = null)
         where T : class
         => container.RegisterTransient<T>(scope => Bind<T>(scope, section));
 
-    public static ISvcContainer RegisterCfgScoped<T>(this ISvcContainer container, string? section = null)
+    public static ISvcContainer RegisterPicoCfgScoped<T>(this ISvcContainer container, string? section = null)
         where T : class
         => container.RegisterScoped<T>(scope => Bind<T>(scope, section));
 
-    public static ISvcContainer RegisterCfgSingleton<T>(this ISvcContainer container, string? section = null)
+    public static ISvcContainer RegisterPicoCfgSingleton<T>(this ISvcContainer container, string? section = null)
         where T : class
         => container.RegisterSingleton<T>(scope => Bind<T>(scope, section));
+
+    public static ISvcContainer RegisterCfgTransient<T>(this ISvcContainer container, string? section = null)
+        where T : class
+        => container.RegisterPicoCfgTransient<T>(section);
+
+    public static ISvcContainer RegisterCfgScoped<T>(this ISvcContainer container, string? section = null)
+        where T : class
+        => container.RegisterPicoCfgScoped<T>(section);
+
+    public static ISvcContainer RegisterCfgSingleton<T>(this ISvcContainer container, string? section = null)
+        where T : class
+        => container.RegisterPicoCfgSingleton<T>(section);
 
     private static T Bind<T>(ISvcScope scope, string? section)
         where T : class
@@ -32,10 +65,10 @@ public static class SvcContainerExtensions
 
         var snapshot = TryGetSnapshot(scope);
         if (snapshot is not null)
-            return PicoCfgBind.Bind<T>(snapshot, section);
+            return CfgBind.Bind<T>(snapshot, section);
 
         throw new InvalidOperationException(
-            "No PicoCfg configuration source is registered. Call RegisterCfgRoot(...) or RegisterCfgSnapshot(...) before registering bound configuration services."
+            "No PicoCfg configuration source is registered. Call RegisterPicoCfg(...), RegisterCfgRoot(...), or RegisterCfgSnapshot(...) before registering bound configuration services."
         );
     }
 
@@ -46,6 +79,14 @@ public static class SvcContainerExtensions
         var snapshot = TryGetServices<ICfgSnapshot>(scope).LastOrDefault();
         if (snapshot is not null)
             return snapshot;
+
+        var runtime = TryGetServices<ICfgRuntime>(scope).LastOrDefault();
+        if (runtime is not null)
+            return runtime.Current;
+
+        var cfg = TryGetServices<ICfg>(scope).LastOrDefault();
+        if (cfg is ICfgSnapshot cfgSnapshot)
+            return cfgSnapshot;
 
         var root = TryGetServices<ICfgRoot>(scope).LastOrDefault();
         return root?.Snapshot;

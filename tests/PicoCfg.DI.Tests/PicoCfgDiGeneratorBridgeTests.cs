@@ -33,6 +33,30 @@ public sealed class AppSettings
     }
 
     [Test]
+    public async Task RegisterPicoCfgTransient_ClosedConcreteTarget_DoesNotProduceDiagnostics()
+    {
+        const string source = """
+using PicoCfg;
+using PicoCfg.DI;
+using PicoDI;
+
+var container = new SvcContainer();
+container.RegisterPicoCfgTransient<AppSettings>("App");
+
+public sealed class AppSettings
+{
+    public string? Name { get; set; }
+    public bool Enabled { get; set; }
+    public int Count { get; set; }
+}
+""";
+
+        var diagnostics = GetDiagnostics(source);
+
+        await Assert.That(diagnostics.Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)).IsEmpty();
+    }
+
+    [Test]
     public async Task RegisterCfgTransient_OpenGenericTarget_ProducesDiagnostic()
     {
         const string source = """

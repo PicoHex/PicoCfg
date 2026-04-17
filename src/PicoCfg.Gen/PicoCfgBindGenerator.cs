@@ -482,6 +482,9 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
                 case "RegisterCfgTransient": operation = BindOperation.Bind; return true;
                 case "RegisterCfgScoped": operation = BindOperation.Bind; return true;
                 case "RegisterCfgSingleton": operation = BindOperation.Bind; return true;
+                case "RegisterPicoCfgTransient": operation = BindOperation.Bind; return true;
+                case "RegisterPicoCfgScoped": operation = BindOperation.Bind; return true;
+                case "RegisterPicoCfgSingleton": operation = BindOperation.Bind; return true;
                 default: return false;
             }
         }
@@ -491,7 +494,8 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
 
     private static bool IsTargetMethodName(string methodName)
         => methodName is "Bind" or "TryBind" or "BindInto"
-            or "RegisterCfgTransient" or "RegisterCfgScoped" or "RegisterCfgSingleton";
+            or "RegisterCfgTransient" or "RegisterCfgScoped" or "RegisterCfgSingleton"
+            or "RegisterPicoCfgTransient" or "RegisterPicoCfgScoped" or "RegisterPicoCfgSingleton";
 
     private sealed class TargetRegistration(ITypeSymbol targetType)
     {

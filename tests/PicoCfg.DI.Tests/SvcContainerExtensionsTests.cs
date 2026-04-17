@@ -3,6 +3,60 @@ namespace PicoCfg.DI.Tests;
 public sealed class SvcContainerExtensionsTests
 {
     [Test]
+    public async Task RegisterPicoCfg_RegistersRuntimeCfgAndLatestSnapshot()
+    {
+        var state = CreateSettingsData("Before", 1);
+        var version = 0;
+
+        await using var root = await CreateRootAsync(() => state, () => version);
+        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+
+        container.RegisterPicoCfg(root);
+
+        using var scope = container.CreateScope();
+        var runtime = scope.GetService<ICfgRuntime>();
+        var cfg = scope.GetService<ICfg>();
+        var snapshotBefore = scope.GetService<ICfgSnapshot>();
+
+        await Assert.That(runtime).IsSameReferenceAs((ICfgRuntime)root);
+        await Assert.That(cfg.GetValue("App:Name")).IsEqualTo("Before");
+        await Assert.That(snapshotBefore.GetValue("App:Name")).IsEqualTo("Before");
+
+        state = CreateSettingsData("After", 2);
+        version++;
+        await root.ReloadAsync();
+
+        var snapshotAfter = scope.GetService<ICfgSnapshot>();
+        var cfgAfter = scope.GetService<ICfg>();
+
+        await Assert.That(snapshotAfter).IsNotSameReferenceAs(snapshotBefore);
+        await Assert.That(snapshotAfter.GetValue("App:Name")).IsEqualTo("After");
+        await Assert.That(cfgAfter.GetValue("App:Name")).IsEqualTo("After");
+    }
+
+    [Test]
+    public async Task RegisterPicoCfgSnapshot_RegistersCfgAndSupportsBinding()
+    {
+        var snapshot = new InlineSnapshot(CreateSettingsData("Snapshot", 7));
+
+        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+
+        container
+            .RegisterPicoCfg(snapshot)
+            .RegisterPicoCfgTransient<AppSettings>("App");
+
+        using var scope = container.CreateScope();
+        var resolvedCfg = scope.GetService<ICfg>();
+        var resolvedSnapshot = scope.GetService<ICfgSnapshot>();
+        var settings = scope.GetService<AppSettings>();
+
+        await Assert.That(resolvedCfg.GetValue("App:Name")).IsEqualTo("Snapshot");
+        await Assert.That(resolvedSnapshot).IsSameReferenceAs(snapshot);
+        await Assert.That(settings.Name).IsEqualTo("Snapshot");
+        await Assert.That(settings.Count).IsEqualTo(7);
+    }
+
+    [Test]
     public async Task RegisterCfgRoot_RegistersRootAndExposesLatestSnapshot()
     {
         var state = CreateSettingsData("Before", 1);
@@ -62,6 +116,34 @@ public sealed class SvcContainerExtensionsTests
         container
             .RegisterCfgRoot(root)
             .RegisterCfgTransient<AppSettings>("App");
+
+        using var scope = container.CreateScope();
+        var before = scope.GetService<AppSettings>();
+
+        state = CreateSettingsData("After", 2);
+        version++;
+        await root.ReloadAsync();
+
+        var after = scope.GetService<AppSettings>();
+
+        await Assert.That(before).IsNotSameReferenceAs(after);
+        await Assert.That(before.Name).IsEqualTo("Before");
+        await Assert.That(after.Name).IsEqualTo("After");
+        await Assert.That(after.Count).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task RegisterPicoCfgTransient_BindsCurrentSnapshotPerResolution()
+    {
+        var state = CreateSettingsData("Before", 1);
+        var version = 0;
+
+        await using var root = await CreateRootAsync(() => state, () => version);
+        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
+
+        container
+            .RegisterPicoCfg(root)
+            .RegisterPicoCfgTransient<AppSettings>("App");
 
         using var scope = container.CreateScope();
         var before = scope.GetService<AppSettings>();
@@ -150,7 +232,7 @@ public sealed class SvcContainerExtensionsTests
         var thrown = await Assert.That(() => scope.GetService<AppSettings>()).Throws<InvalidOperationException>();
 
         await Assert.That(thrown).IsNotNull();
-        await Assert.That(thrown.Message).Contains("RegisterCfgRoot(...)");
+        await Assert.That(thrown.Message).Contains("RegisterPicoCfg(...)");
     }
 
     private static async Task<ICfgRoot> CreateRootAsync(
