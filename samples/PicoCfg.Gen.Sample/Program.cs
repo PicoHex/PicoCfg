@@ -21,6 +21,11 @@ Console.WriteLine($"Enabled: {settings.Enabled}");
 Console.WriteLine($"Count: {settings.Count}");
 Console.WriteLine($"Mode: {settings.Mode}");
 
+AssertEqual("Bind Name", settings.Name, "PicoCfg.Gen");
+AssertEqual("Bind Enabled", settings.Enabled, true);
+AssertEqual("Bind Count", settings.Count, 42);
+AssertEqual("Bind Mode", settings.Mode, SampleMode.Advanced);
+
 var existing = new AppSettings
 {
     Name = "Before",
@@ -38,7 +43,20 @@ Console.WriteLine($"Enabled: {existing.Enabled}");
 Console.WriteLine($"Count: {existing.Count}");
 Console.WriteLine($"Mode: {existing.Mode}");
 
+AssertEqual("BindInto Name", existing.Name, "PicoCfg.Gen");
+AssertEqual("BindInto Enabled", existing.Enabled, true);
+AssertEqual("BindInto Count", existing.Count, 42);
+AssertEqual("BindInto Mode", existing.Mode, SampleMode.Advanced);
+
 return 0;
+
+static void AssertEqual<T>(string name, T actual, T expected)
+{
+    if (!EqualityComparer<T>.Default.Equals(actual, expected))
+    {
+        throw new InvalidOperationException($"{name} mismatch. Expected '{expected}' but got '{actual}'.");
+    }
+}
 
 public sealed class AppSettings
 {
