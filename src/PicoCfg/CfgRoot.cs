@@ -41,6 +41,8 @@ internal sealed class CfgRoot : ICfgRoot
         }
     }
 
+    public ICfgSnapshot Current => Snapshot;
+
     public async ValueTask<bool> ReloadAsync(CancellationToken ct = default)
     {
         await _reloadGate.WaitAsync(ct);
@@ -60,6 +62,12 @@ internal sealed class CfgRoot : ICfgRoot
     {
         lock (_syncRoot)
             return _changeSignal;
+    }
+
+    public ValueTask WaitForChangeAsync(CancellationToken ct = default)
+    {
+        var changeSignal = GetChangeSignal();
+        return changeSignal.WaitForChangeAsync(ct);
     }
 
     public async ValueTask DisposeAsync()
