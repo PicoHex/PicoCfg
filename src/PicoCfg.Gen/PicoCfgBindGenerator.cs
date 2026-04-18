@@ -201,7 +201,7 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
         {
             var target = targets[i];
             var typeName = target.TargetType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            var bindDelegateType = "global::System.Func<global::PicoCfg.Abs.ICfgSnapshot, string?, " + typeName + ">";
+            var bindDelegateType = "global::System.Func<global::PicoCfg.Abs.ICfg, string?, " + typeName + ">";
             var tryBindDelegateType = "global::PicoCfg.PicoCfgGeneratedTryBindDelegate<" + typeName + ">";
             var bindIntoDelegateType = "global::PicoCfg.PicoCfgGeneratedBindIntoDelegate<" + typeName + ">";
             var hasCtor = target.HasPublicParameterlessConstructor ? "(" + bindDelegateType + ")Bind_" + i : "null";
@@ -231,18 +231,18 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
 
         if (target.HasPublicParameterlessConstructor)
         {
-            sb.Append("    private static ").Append(typeName).Append(" Bind_").Append(index).AppendLine("(global::PicoCfg.Abs.ICfgSnapshot snapshot, string? section)");
+            sb.Append("    private static ").Append(typeName).Append(" Bind_").Append(index).AppendLine("(global::PicoCfg.Abs.ICfg cfg, string? section)");
             sb.AppendLine("    {");
             sb.Append("        var instance = new ").Append(typeName).AppendLine("();");
-            sb.Append("        BindInto_").Append(index).AppendLine("(snapshot, section, instance);");
+            sb.Append("        BindInto_").Append(index).AppendLine("(cfg, section, instance);");
             sb.AppendLine("        return instance;");
             sb.AppendLine("    }");
             sb.AppendLine();
 
-            sb.Append("    private static bool TryBind_").Append(index).Append("(global::PicoCfg.Abs.ICfgSnapshot snapshot, string? section, out ").Append(typeName).AppendLine(" value)");
+            sb.Append("    private static bool TryBind_").Append(index).Append("(global::PicoCfg.Abs.ICfg cfg, string? section, out ").Append(typeName).AppendLine(" value)");
             sb.AppendLine("    {");
             sb.Append("        var instance = new ").Append(typeName).AppendLine("();");
-            sb.Append("        if (!TryBindInto_").Append(index).AppendLine("(snapshot, section, instance))");
+            sb.Append("        if (!TryBindInto_").Append(index).AppendLine("(cfg, section, instance))");
             sb.AppendLine("        {");
             sb.AppendLine("            value = default!;");
             sb.AppendLine("            return false;");
@@ -254,14 +254,14 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
             sb.AppendLine();
         }
 
-        sb.Append("    private static void BindInto_").Append(index).Append("(global::PicoCfg.Abs.ICfgSnapshot snapshot, string? section, ").Append(typeName).AppendLine(" instance)");
+        sb.Append("    private static void BindInto_").Append(index).Append("(global::PicoCfg.Abs.ICfg cfg, string? section, ").Append(typeName).AppendLine(" instance)");
         sb.AppendLine("    {");
         foreach (var property in target.Properties)
             AppendBindProperty(sb, target, property, throwOnFailure: true);
         sb.AppendLine("    }");
         sb.AppendLine();
 
-        sb.Append("    private static bool TryBindInto_").Append(index).Append("(global::PicoCfg.Abs.ICfgSnapshot snapshot, string? section, ").Append(typeName).AppendLine(" instance)");
+        sb.Append("    private static bool TryBindInto_").Append(index).Append("(global::PicoCfg.Abs.ICfg cfg, string? section, ").Append(typeName).AppendLine(" instance)");
         sb.AppendLine("    {");
         sb.AppendLine("        var any = false;");
         foreach (var property in target.Properties)
@@ -281,7 +281,7 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
         var valueName = "__value_" + property.Name;
 
         sb.Append("        var ").Append(pathName).Append(" = global::PicoCfg.PicoCfgBindRuntime.CombinePath(section, ").Append(propertyPathLiteral).AppendLine(");");
-        sb.Append("        if (snapshot.TryGetValue(").Append(pathName).Append(", out var ").Append(rawName).AppendLine("))");
+        sb.Append("        if (cfg.TryGetValue(").Append(pathName).Append(", out var ").Append(rawName).AppendLine("))");
         sb.AppendLine("        {");
         if (!throwOnFailure)
             sb.AppendLine("            any = true;");

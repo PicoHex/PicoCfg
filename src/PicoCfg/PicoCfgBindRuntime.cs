@@ -11,7 +11,7 @@ public static class PicoCfgBindRuntime
 
     public static void Register<T>(
         int contractVersion,
-        Func<ICfgSnapshot, string?, T>? bind,
+        Func<ICfg, string?, T>? bind,
         PicoCfgGeneratedTryBindDelegate<T>? tryBind,
         PicoCfgGeneratedBindIntoDelegate<T> bindInto
     )
@@ -81,16 +81,16 @@ public static class PicoCfgBindRuntime
 }
 
 [EditorBrowsable(EditorBrowsableState.Never)]
-public delegate bool PicoCfgGeneratedTryBindDelegate<T>(ICfgSnapshot snapshot, string? section, [MaybeNullWhen(false)] out T value);
+public delegate bool PicoCfgGeneratedTryBindDelegate<T>(ICfg cfg, string? section, [MaybeNullWhen(false)] out T value);
 
 [EditorBrowsable(EditorBrowsableState.Never)]
-public delegate void PicoCfgGeneratedBindIntoDelegate<T>(ICfgSnapshot snapshot, string? section, T instance);
+public delegate void PicoCfgGeneratedBindIntoDelegate<T>(ICfg cfg, string? section, T instance);
 
 internal sealed class PicoCfgBindRegistration<T>
 {
     public PicoCfgBindRegistration(
         int contractVersion,
-        Func<ICfgSnapshot, string?, T>? bind,
+        Func<ICfg, string?, T>? bind,
         PicoCfgGeneratedTryBindDelegate<T>? tryBind,
         PicoCfgGeneratedBindIntoDelegate<T> bindInto
     )
@@ -102,7 +102,7 @@ internal sealed class PicoCfgBindRegistration<T>
     }
 
     public int ContractVersion { get; }
-    public Func<ICfgSnapshot, string?, T>? Bind { get; }
+    public Func<ICfg, string?, T>? Bind { get; }
     public PicoCfgGeneratedTryBindDelegate<T>? TryBind { get; }
     public PicoCfgGeneratedBindIntoDelegate<T> BindInto { get; }
 }

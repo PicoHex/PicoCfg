@@ -13,60 +13,42 @@ public static class CfgBind
     public static void BindInto<T>(ICfgSnapshot snapshot, T instance, string? section = null)
         => PicoCfgBind.BindInto(snapshot, instance, section);
 
-    public static T Bind<T>(ICfgRuntime runtime, string? section = null)
+    public static T Bind<T>(ICfgRoot root, string? section = null)
     {
-        ArgumentNullException.ThrowIfNull(runtime);
-        return Bind<T>(runtime.Current, section);
+        ArgumentNullException.ThrowIfNull(root);
+        return PicoCfgBind.Bind<T>(root, section);
     }
 
-    public static bool TryBind<T>(ICfgRuntime runtime, [MaybeNullWhen(false)] out T value, string? section = null)
+    public static bool TryBind<T>(ICfgRoot root, [MaybeNullWhen(false)] out T value, string? section = null)
     {
-        ArgumentNullException.ThrowIfNull(runtime);
-        return TryBind(runtime.Current, out value, section);
+        ArgumentNullException.ThrowIfNull(root);
+        return PicoCfgBind.TryBind(root, out value, section);
     }
 
-    public static void BindInto<T>(ICfgRuntime runtime, T instance, string? section = null)
+    public static void BindInto<T>(ICfgRoot root, T instance, string? section = null)
     {
-        ArgumentNullException.ThrowIfNull(runtime);
-        BindInto(runtime.Current, instance, section);
+        ArgumentNullException.ThrowIfNull(root);
+        PicoCfgBind.BindInto(root, instance, section);
     }
 
     public static T Bind<T>(ICfg cfg, string? section = null)
     {
         ArgumentNullException.ThrowIfNull(cfg);
 
-        if (cfg is ICfgSnapshot snapshot)
-            return Bind<T>(snapshot, section);
-
-        throw new InvalidOperationException(
-            $"{nameof(CfgBind)} currently requires an {nameof(ICfgSnapshot)} instance. Received '{cfg.GetType().FullName}'."
-        );
+        return PicoCfgBind.Bind<T>(cfg, section);
     }
 
     public static bool TryBind<T>(ICfg cfg, [MaybeNullWhen(false)] out T value, string? section = null)
     {
         ArgumentNullException.ThrowIfNull(cfg);
 
-        if (cfg is ICfgSnapshot snapshot)
-            return TryBind(snapshot, out value, section);
-
-        throw new InvalidOperationException(
-            $"{nameof(CfgBind)} currently requires an {nameof(ICfgSnapshot)} instance. Received '{cfg.GetType().FullName}'."
-        );
+        return PicoCfgBind.TryBind(cfg, out value, section);
     }
 
     public static void BindInto<T>(ICfg cfg, T instance, string? section = null)
     {
         ArgumentNullException.ThrowIfNull(cfg);
 
-        if (cfg is ICfgSnapshot snapshot)
-        {
-            BindInto(snapshot, instance, section);
-            return;
-        }
-
-        throw new InvalidOperationException(
-            $"{nameof(CfgBind)} currently requires an {nameof(ICfgSnapshot)} instance. Received '{cfg.GetType().FullName}'."
-        );
+        PicoCfgBind.BindInto(cfg, instance, section);
     }
 }
