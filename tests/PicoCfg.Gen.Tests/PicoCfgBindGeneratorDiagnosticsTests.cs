@@ -1,5 +1,7 @@
 namespace PicoCfg.Gen.Tests;
 
+#pragma warning disable CS0618
+
 public class PicoCfgBindGeneratorDiagnosticsTests
 {
     [Test]
@@ -22,7 +24,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
 
             public static class Entry
             {
-                public static ComplexSettings Run(ICfgSnapshot snapshot) => PicoCfgBind.Bind<ComplexSettings>(snapshot);
+                public static ComplexSettings Run(ICfgSnapshot snapshot) => CfgBind.Bind<ComplexSettings>(snapshot);
             }
             """
         );
@@ -46,7 +48,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
 
             public static class Entry
             {
-                public static CollectionSettings Run(ICfgSnapshot snapshot) => PicoCfgBind.Bind<CollectionSettings>(snapshot);
+                public static CollectionSettings Run(ICfgSnapshot snapshot) => CfgBind.Bind<CollectionSettings>(snapshot);
             }
             """
         );
@@ -70,7 +72,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
 
             public static class Entry
             {
-                public static NoCtorSettings Run(ICfgSnapshot snapshot) => PicoCfgBind.Bind<NoCtorSettings>(snapshot);
+                public static NoCtorSettings Run(ICfgSnapshot snapshot) => CfgBind.Bind<NoCtorSettings>(snapshot);
             }
             """
         );
@@ -93,7 +95,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
 
             public static class Entry<T>
             {
-                public static GenericSettings<T> Run(ICfgSnapshot snapshot) => PicoCfgBind.Bind<GenericSettings<T>>(snapshot);
+                public static GenericSettings<T> Run(ICfgSnapshot snapshot) => CfgBind.Bind<GenericSettings<T>>(snapshot);
             }
             """
         );
@@ -149,3 +151,5 @@ public class PicoCfgBindGeneratorDiagnosticsTests
             .ToArray();
     }
 }
+
+#pragma warning restore CS0618

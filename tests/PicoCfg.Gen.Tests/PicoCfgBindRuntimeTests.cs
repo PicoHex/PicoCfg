@@ -2,6 +2,8 @@ namespace PicoCfg.Gen.Tests;
 
 using System.Diagnostics.CodeAnalysis;
 
+#pragma warning disable CS0618
+
 public class PicoCfgBindRuntimeTests
 {
     [Test]
@@ -235,3 +237,5 @@ public class PicoCfgBindRuntimeTests
         public static CtorlessBindIntoOnly Create(int port) => new() { Port = port };
     }
 }
+
+#pragma warning restore CS0618

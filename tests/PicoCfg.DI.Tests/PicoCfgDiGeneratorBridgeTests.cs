@@ -109,7 +109,7 @@ public sealed class AppSettings<T>
         var explicitAssemblies = new[]
         {
             typeof(ICfgSnapshot).Assembly.Location,
-            typeof(PicoCfgBind).Assembly.Location,
+            typeof(CfgBind).Assembly.Location,
             typeof(SvcDescriptor).Assembly.Location,
             typeof(PicoCfg.DI.SvcContainerExtensions).Assembly.Location,
             typeof(PicoDI.SvcContainer).Assembly.Location,
