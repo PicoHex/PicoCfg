@@ -103,6 +103,76 @@ public class PicoCfgBindGeneratorDiagnosticsTests
         await AssertDiagnosticAsync(diagnostics, "PCFGGEN001");
     }
 
+    [Test]
+    public async Task UnsupportedPropertyType_ProducesDiagnostic()
+    {
+        var diagnostics = await CompileAndGetDiagnosticsAsync(
+            """
+            using PicoCfg;
+            using PicoCfg.Abs;
+
+            public unsafe sealed class UnsupportedPropertyTypeSettings
+            {
+                public delegate*<void> Callback { get; set; }
+            }
+
+            public static class Entry
+            {
+                public static UnsupportedPropertyTypeSettings Run(ICfg cfg) => CfgBind.Bind<UnsupportedPropertyTypeSettings>(cfg);
+            }
+            """,
+            allowUnsafe: true
+        );
+
+        await AssertDiagnosticAsync(diagnostics, "PCFGGEN005");
+    }
+
+    [Test]
+    public async Task UnsupportedPropertyShape_ProducesDiagnostic()
+    {
+        var diagnostics = await CompileAndGetDiagnosticsAsync(
+            """
+            using PicoCfg;
+            using PicoCfg.Abs;
+
+            public sealed class UnsupportedPropertyShapeSettings
+            {
+                public int Value { get; private set; }
+            }
+
+            public static class Entry
+            {
+                public static UnsupportedPropertyShapeSettings Run(ICfg cfg) => CfgBind.Bind<UnsupportedPropertyShapeSettings>(cfg);
+            }
+            """
+        );
+
+        await AssertDiagnosticAsync(diagnostics, "PCFGGEN006");
+    }
+
+    [Test]
+    public async Task NonClassTarget_ProducesDiagnostic()
+    {
+        var diagnostics = await CompileAndGetDiagnosticsAsync(
+            """
+            using PicoCfg;
+            using PicoCfg.Abs;
+
+            public struct StructSettings
+            {
+                public int Value { get; set; }
+            }
+
+            public static class Entry
+            {
+                public static StructSettings Run(ICfg cfg) => CfgBind.Bind<StructSettings>(cfg);
+            }
+            """
+        );
+
+        await AssertDiagnosticAsync(diagnostics, "PCFGGEN007");
+    }
+
     private static async Task AssertDiagnosticAsync(ImmutableArray<Diagnostic> diagnostics, string id)
     {
         var match = diagnostics.FirstOrDefault(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error && diagnostic.Id == id);
@@ -111,7 +181,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
         await Assert.That(match.Id).IsEqualTo(id);
     }
 
-    private static async Task<ImmutableArray<Diagnostic>> CompileAndGetDiagnosticsAsync(string source)
+    private static async Task<ImmutableArray<Diagnostic>> CompileAndGetDiagnosticsAsync(string source, bool allowUnsafe = false)
     {
         var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview);
         var syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);
@@ -121,7 +191,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
             assemblyName: "PicoCfg.Gen.Tests.DynamicCompilation",
             syntaxTrees: [syntaxTree],
             references: references,
-            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: allowUnsafe)
         );
 
         var generator = new PicoCfg.Gen.Generator.PicoCfgBindGenerator();
