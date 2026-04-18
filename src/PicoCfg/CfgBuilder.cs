@@ -52,7 +52,7 @@ public sealed class CfgBuilder
     /// Returns the built-in line-based <c>key=value</c> parser used by PicoCfg's text and stream sources.
     /// Use this when you want to decorate the default parsing behavior instead of replacing it outright.
     /// </summary>
-    public static Func<Stream, CancellationToken, Task<Dictionary<string, string>>> CreateDefaultStreamParser()
+    internal static Func<Stream, CancellationToken, Task<Dictionary<string, string>>> CreateDefaultStreamParser()
     {
         return s_defaultStreamParser;
     }
@@ -71,7 +71,7 @@ public sealed class CfgBuilder
     /// Adds a source to the builder.
     /// Sources are evaluated in insertion order, and later sources override earlier ones.
     /// </summary>
-    public CfgBuilder AddSource(ICfgSource source)
+    internal CfgBuilder AddSource(ICfgSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
         _sources.Add(source);
@@ -175,7 +175,7 @@ public sealed class CfgBuilder
     /// Replaces the parser used by PicoCfg's built-in text and stream source paths.
     /// The supplied parser is called on each materialization that requires parsing source content.
     /// </summary>
-    public CfgBuilder WithStreamParser(
+    internal CfgBuilder WithStreamParser(
         Func<Stream, CancellationToken, Task<Dictionary<string, string>>> streamParser
     )
     {
@@ -204,7 +204,7 @@ public sealed class CfgBuilder
     /// Replaces the snapshot composer used to publish the root snapshot from the current provider snapshots.
     /// Use <see cref="CreateDefaultSnapshotComposer()"/> when you want to wrap the built-in composition behavior.
     /// </summary>
-    public CfgBuilder WithSnapshotComposer(
+    internal CfgBuilder WithSnapshotComposer(
         Func<IReadOnlyList<ICfgSnapshot>, ICfgSnapshot> snapshotComposer
     )
     {
@@ -250,7 +250,7 @@ public sealed class CfgBuilder
     /// Returns the built-in snapshot composer used by PicoCfg roots when no custom composer is supplied.
     /// Use this when you want to decorate the default provider-snapshot composition behavior.
     /// </summary>
-    public static Func<IReadOnlyList<ICfgSnapshot>, ICfgSnapshot> CreateDefaultSnapshotComposer()
+    internal static Func<IReadOnlyList<ICfgSnapshot>, ICfgSnapshot> CreateDefaultSnapshotComposer()
     {
         return CreateDefaultSnapshotComposer(s_defaultSnapshotFactory);
     }
