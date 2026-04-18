@@ -12,7 +12,7 @@ PicoCfg — это небольшая AOT-friendly библиотека конф
 - небольшая публичная поверхность
 - точный поиск по строковому ключу
 - явная семантика reload и change signal
-- поддержка пользовательских source через `PicoCfg.Abs`
+- минимальные consumer-контракты через `PicoCfg.Abs`
 - дизайн, дружественный к Native AOT
 
 ## Установка
@@ -23,19 +23,19 @@ PicoCfg — это небольшая AOT-friendly библиотека конф
 dotnet add package PicoCfg
 ```
 
-Используйте `PicoCfg.Abs`, если вам нужны только контракты для пользовательских интеграций или абстракций:
+Используйте `PicoCfg.Abs`, если вам нужны только минимальные consumer-контракты, такие как `ICfg` и `ICfgRoot`:
 
 ```bash
 dotnet add package PicoCfg.Abs
 ```
 
-Используйте `PicoCfg.Gen`, если хотите AOT-safe образом связывать snapshot или root PicoCfg с плоскими POCO через source generation. Пакет добавляет генератор, а runtime API `PicoCfgBind` находится в `PicoCfg`:
+Используйте `PicoCfg.Gen`, если хотите AOT-safe образом связывать конфигурационные представления PicoCfg с плоскими POCO через source generation. Пакет добавляет генератор, а runtime API `CfgBind` находится в `PicoCfg`:
 
 ```bash
 dotnet add package PicoCfg.Gen
 ```
 
-Используйте `PicoCfg.DI`, если вам нужны совместимые с PicoDI средства регистрации для `ICfgRoot`, `ICfgSnapshot` и сервисов конфигурации на основе generated binding. В режиме project-reference сохраняйте прямую ссылку на `PicoCfg.Gen` в приложении-потребителе, чтобы binder generator запускался для ваших вызовов `RegisterCfg*<T>`:
+Используйте `PicoCfg.DI`, если вам нужны совместимые с PicoDI средства регистрации для `ICfgRoot`, `ICfg` и сервисов конфигурации на основе generated binding. В режиме project-reference сохраняйте прямую ссылку на `PicoCfg.Gen` в приложении-потребителе, чтобы binder generator запускался для ваших вызовов `RegisterCfg*<T>`:
 
 ```bash
 dotnet add package PicoCfg.DI
@@ -60,15 +60,15 @@ await using var root = await Cfg
     .Add(() => new MemoryStream(Encoding.UTF8.GetBytes("AppName=PicoCfg")))
     .BuildAsync();
 
-Console.WriteLine(root.Snapshot.GetValue("ConnectionString"));
-Console.WriteLine(root.Snapshot.GetValue("Logging:Level"));
+Console.WriteLine(root.GetValue("ConnectionString"));
+Console.WriteLine(root.GetValue("Logging:Level"));
 ```
 
 Более поздние source переопределяют более ранние.
 
 ## Генерируемое связывание с PicoCfg.Gen
 
-`PicoCfg.Gen` добавляет source generator для модели snapshot с точными ключами в PicoCfg, а `PicoCfg` предоставляет runtime API `PicoCfgBind`, которое использует сгенерированный binder.
+`PicoCfg.Gen` добавляет source generator для модели точных ключей PicoCfg, а `PicoCfg` предоставляет runtime API `CfgBind`, которое использует сгенерированный binder.
 Сгенерированный binder синхронный, trim-friendly и рассчитан на сценарии Native AOT.
 
 ```csharp
@@ -85,7 +85,7 @@ await using var root = await Cfg
     })
     .BuildAsync();
 
-var settings = PicoCfgBind.Bind<AppSettings>(root, "App");
+var settings = CfgBind.Bind<AppSettings>(root, "App");
 
 Console.WriteLine(settings.Name);
 Console.WriteLine(settings.Enabled);
@@ -101,16 +101,16 @@ public sealed class AppSettings
 
 При подключённом `PicoCfg.Gen` доступна следующая поверхность generated binding:
 
-- `PicoCfgBind.Bind<T>(ICfgSnapshot, section?)`
-- `PicoCfgBind.Bind<T>(ICfgRoot, section?)`
-- `PicoCfgBind.TryBind<T>(...)`
-- `PicoCfgBind.BindInto<T>(...)`
+- `CfgBind.Bind<T>(ICfgRoot, section?)`
+- `CfgBind.Bind<T>(ICfg, section?)`
+- `CfgBind.TryBind<T>(...)`
+- `CfgBind.BindInto<T>(...)`
 
 ### Границы PicoCfg.Gen v1
 
 Текущий сгенерированный binder намеренно остаётся узким по возможностям:
 
-- только прямые closed generic вызовы `PicoCfgBind`
+- только прямые closed generic вызовы `CfgBind`
 - только concrete class target
 - только flat public writable scalar properties
 - точное совпадение имени свойства с учётом регистра
@@ -131,7 +131,7 @@ public sealed class AppSettings
 ## PicoCfg.DI с PicoDI
 
 `PicoCfg.DI` добавляет к `PicoCfg` и `PicoCfg.Gen` совместимые с PicoDI средства регистрации.
-Используйте `RegisterCfgRoot(...)`, если у вас уже есть `ICfgRoot`, `RegisterCfgSnapshot(...)`, если нужен фиксированный snapshot, и `RegisterCfgTransient<T>()` / `RegisterCfgScoped<T>()` / `RegisterCfgSingleton<T>()`, если вы хотите разрешать через PicoDI POCO на основе generated binding.
+Используйте `RegisterCfgRoot(...)`, если у вас уже есть `ICfgRoot`, и `RegisterCfgTransient<T>()` / `RegisterCfgScoped<T>()` / `RegisterCfgSingleton<T>()`, если вы хотите разрешать через PicoDI POCO на основе generated binding.
 
 ```csharp
 using PicoCfg;
@@ -156,8 +156,10 @@ container
     .RegisterCfgSingleton<AppSettings>("App");
 
 using var scope = container.CreateScope();
+var cfg = scope.GetService<ICfg>();
 var settings = scope.GetService<AppSettings>();
 
+Console.WriteLine(cfg.GetValue("App:Name"));
 Console.WriteLine(settings.Name);
 Console.WriteLine(settings.Count);
 
@@ -177,12 +179,13 @@ public sealed class AppSettings
 `GetValue()` выполняет точный поиск по всей строке в текущем snapshot и возвращает `null`, если ключ отсутствует.
 Символы вроде `:` и `.` являются частью имени ключа; PicoCfg не трактует их как иерархическую навигацию.
 
-### Стабильные снимки
+### Опубликованные конфигурационные представления [advanced]
 
-`ICfgRoot.Snapshot` предоставляет текущий опубликованный snapshot только для чтения.
-Если reload не публикует новый snapshot, сохраняется тот же экземпляр snapshot.
+`ICfgRoot` всегда читает из текущего опубликованного составного конфигурационного представления.
+Если reload не публикует новое представление, чтения продолжают видеть то же опубликованное состояние.
 Публикация root определяется составной последовательностью provider snapshot, а не только финальными объединёнными видимыми значениями.
-Уже полученные snapshot остаются пригодными к использованию после dispose root.
+
+Большинству прикладного кода стоит использовать `ICfg` для точных lookup, `ICfgRoot` для семантики владения, reload и ожидания, а связанные POCO для типизированного потребления.
 
 ### Жизненный цикл
 
@@ -236,47 +239,27 @@ builder.Add(() => File.OpenRead("app.cfg"));
 
 - `ReloadAsync()` возвращает `true` только тогда, когда публикуется новый экземпляр snapshot
 - `ReloadAsync()` возвращает `false`, когда текущий экземпляр snapshot сохраняется
-- `GetChangeSignal()` возвращает one-shot signal для текущей опубликованной версии
 - каждый вызов `ReloadAsync()` публикует не более одного нового составного snapshot
-- после опубликованного изменения нужно получить новый signal для последующих ожиданий, потому что signal привязан к одной опубликованной версии
+- `WaitForChangeAsync()` является публичным primitive уведомления об изменениях для consumer'ов root
 
 Если reload выбрасывает исключение или отменяется после того, как некоторые provider уже опубликовали новые версии snapshot,
 root может сначала опубликовать наблюдаемый составной snapshot для этих уже settled provider version после того, как reload task завершат settle,
-а затем повторно выбросить ошибку. После неудачного reload заново считайте `Snapshot` и получите новый change signal, если вам нужно наблюдать последнее опубликованное состояние.
+а затем повторно выбросить ошибку. После неудачного reload перечитайте через `ICfgRoot` или `ICfg`, если вам нужно наблюдать последнее опубликованное состояние.
 
 Когда встроенный source использует `versionStampFactory`, первая завершённая materialization устанавливает accepted authoritative stamp baseline.
 Любая последующая завершённая rematerialization обновляет эту baseline, даже если текущий экземпляр snapshot сохраняется, потому что materialized content не изменился.
 Последующие одинаковые stamp, включая повторяющийся `null`, пропускают reread, reparse или re-enumeration работу.
 Изменившийся stamp принудительно запускает rematerialization, но текущий snapshot всё ещё может быть сохранён, если materialized content не изменился.
 
-Когда все составные provider snapshot являются нативными snapshot PicoCfg, root уплощает их в один snapshot на основе dictionary для steady-state чтения.
-Если какой-либо provider поставляет пользовательский `ICfgSnapshot`, root сохраняет это пользовательское поведение lookup и переходит на сканирование provider во время чтения,
-вместо того чтобы уплощать и терять эту пользовательскую семантику. Fallback composition по-прежнему соблюдает обычный приоритет: более поздние provider перекрывают более ранние.
+Встроенная композиция сохраняет обычный приоритет: более поздние source перекрывают более ранние. PicoCfg может внутренне оптимизировать steady-state чтения, не меняя поведение точного ключа, которое видно через `ICfg` и `ICfgRoot`.
 
 ## Пользовательские источники
 
-Пользовательские интеграции строятся на `PicoCfg.Abs`.
+`PicoCfg.Abs` теперь сосредоточен на минимальных контрактах для потребителей. Более низкоуровневые hooks для композиции source и provider являются деталями реализации, а не частью основной API для приложений.
 
-- `ICfgSource.OpenAsync()` открывает source в долгоживущий provider
-- возвращаемый provider уже должен предоставлять читаемый `Snapshot`
-- `ICfgProvider.ReloadAsync()` сообщает, опубликовал ли этот provider новый экземпляр snapshot; `false` означает authoritative unchanged для этой версии provider, и вызывающий код может сохранить текущую ссылку на snapshot
-- `ICfgProvider.GetChangeSignal()` возвращает one-shot signal для текущей опубликованной версии
+## Расширенная настройка
 
-Минимальный набросок:
-
-```csharp
-using PicoCfg.Abs;
-
-public sealed class CustomSource : ICfgSource
-{
-    public async ValueTask<ICfgProvider> OpenAsync(CancellationToken ct = default)
-    {
-        var provider = new CustomProvider();
-        await provider.ReloadAsync(ct);
-        return provider;
-    }
-}
-```
+Основная публичная API намеренно остаётся небольшой: `ICfg`, `ICfgRoot`, `CfgBind` и DI-хелперы поверх них. Более низкоуровневые hooks builder и composition остаются внутренними.
 
 ## Native AOT
 

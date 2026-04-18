@@ -12,7 +12,7 @@ PicoCfg 是一个面向 .NET 的小型、AOT 友好的配置库。
 - 小型公共接口面
 - 精确字符串键查找
 - 显式 reload 和 change-signal 语义
-- 通过 `PicoCfg.Abs` 支持自定义 source
+- 通过 `PicoCfg.Abs` 提供最小化消费契约
 - 面向 Native AOT 的设计
 
 ## 安装
@@ -23,19 +23,19 @@ PicoCfg 是一个面向 .NET 的小型、AOT 友好的配置库。
 dotnet add package PicoCfg
 ```
 
-如果你只需要用于自定义集成或抽象的契约，请使用 `PicoCfg.Abs`：
+如果你只需要最小化消费契约，例如 `ICfg` 和 `ICfgRoot`，请使用 `PicoCfg.Abs`：
 
 ```bash
 dotnet add package PicoCfg.Abs
 ```
 
-如果你想把 PicoCfg 的 snapshot 或 root 以 AOT 友好的方式通过源码生成绑定到平坦 POCO，请使用 `PicoCfg.Gen`。该包提供生成器，而 `PicoCfgBind` 运行时 API 位于 `PicoCfg` 中：
+如果你想把 PicoCfg 的配置视图以 AOT 友好的方式通过源码生成绑定到平坦 POCO，请使用 `PicoCfg.Gen`。该包提供生成器，而 `CfgBind` 运行时 API 位于 `PicoCfg` 中：
 
 ```bash
 dotnet add package PicoCfg.Gen
 ```
 
-如果你想使用 `PicoCfg.DI` 为 `ICfgRoot`、`ICfgSnapshot` 以及基于生成绑定的配置服务提供 PicoDI 注册辅助，请使用 `PicoCfg.DI`。在 project-reference 模式下，请在使用方应用中保留对 `PicoCfg.Gen` 的直接引用，这样 binder generator 才会为你的 `RegisterCfg*<T>` 调用运行：
+如果你想使用 `PicoCfg.DI` 为 `ICfgRoot`、`ICfg` 以及基于生成绑定的配置服务提供 PicoDI 注册辅助，请使用 `PicoCfg.DI`。在 project-reference 模式下，请在使用方应用中保留对 `PicoCfg.Gen` 的直接引用，这样 binder generator 才会为你的 `RegisterCfg*<T>` 调用运行：
 
 ```bash
 dotnet add package PicoCfg.DI
@@ -60,15 +60,15 @@ await using var root = await Cfg
     .Add(() => new MemoryStream(Encoding.UTF8.GetBytes("AppName=PicoCfg")))
     .BuildAsync();
 
-Console.WriteLine(root.Snapshot.GetValue("ConnectionString"));
-Console.WriteLine(root.Snapshot.GetValue("Logging:Level"));
+Console.WriteLine(root.GetValue("ConnectionString"));
+Console.WriteLine(root.GetValue("Logging:Level"));
 ```
 
 后添加的 source 会覆盖先添加的 source。
 
 ## 使用 PicoCfg.Gen 进行生成绑定
 
-`PicoCfg.Gen` 为 PicoCfg 的精确 key snapshot 模型提供源码生成器，而 `PicoCfg` 提供生成绑定器使用的 `PicoCfgBind` 运行时 API。
+`PicoCfg.Gen` 为 PicoCfg 的精确键模型提供源码生成器，而 `PicoCfg` 提供生成绑定器使用的 `CfgBind` 运行时 API。
 生成的 binder 是同步的、trim 友好的，并面向 Native AOT 场景设计。
 
 ```csharp
@@ -85,7 +85,7 @@ await using var root = await Cfg
     })
     .BuildAsync();
 
-var settings = PicoCfgBind.Bind<AppSettings>(root, "App");
+var settings = CfgBind.Bind<AppSettings>(root, "App");
 
 Console.WriteLine(settings.Name);
 Console.WriteLine(settings.Enabled);
@@ -101,16 +101,16 @@ public sealed class AppSettings
 
 在引用 `PicoCfg.Gen` 后，可用的生成绑定 API 为：
 
-- `PicoCfgBind.Bind<T>(ICfgSnapshot, section?)`
-- `PicoCfgBind.Bind<T>(ICfgRoot, section?)`
-- `PicoCfgBind.TryBind<T>(...)`
-- `PicoCfgBind.BindInto<T>(...)`
+- `CfgBind.Bind<T>(ICfgRoot, section?)`
+- `CfgBind.Bind<T>(ICfg, section?)`
+- `CfgBind.TryBind<T>(...)`
+- `CfgBind.BindInto<T>(...)`
 
 ### PicoCfg.Gen v1 范围
 
 当前生成绑定器刻意保持较小范围：
 
-- 仅支持 direct closed generic `PicoCfgBind` 调用
+- 仅支持 direct closed generic `CfgBind` 调用
 - 仅支持 concrete class target
 - 仅支持 flat public writable scalar property
 - 属性名按大小写敏感方式精确匹配
@@ -131,7 +131,7 @@ public sealed class AppSettings
 ## PicoCfg.DI 与 PicoDI
 
 `PicoCfg.DI` 在 `PicoCfg` 和 `PicoCfg.Gen` 之上增加了对 PicoDI 友好的注册辅助。
-当你已经拥有 `ICfgRoot` 时使用 `RegisterCfgRoot(...)`，当你想要固定 snapshot 时使用 `RegisterCfgSnapshot(...)`，当你想通过 PicoDI 解析基于生成绑定的 POCO 时使用 `RegisterCfgTransient<T>()` / `RegisterCfgScoped<T>()` / `RegisterCfgSingleton<T>()`。
+当你已经拥有 `ICfgRoot` 时使用 `RegisterCfgRoot(...)`，当你想通过 PicoDI 解析基于生成绑定的 POCO 时使用 `RegisterCfgTransient<T>()` / `RegisterCfgScoped<T>()` / `RegisterCfgSingleton<T>()`。
 
 ```csharp
 using PicoCfg;
@@ -156,8 +156,10 @@ container
     .RegisterCfgSingleton<AppSettings>("App");
 
 using var scope = container.CreateScope();
+var cfg = scope.GetService<ICfg>();
 var settings = scope.GetService<AppSettings>();
 
+Console.WriteLine(cfg.GetValue("App:Name"));
 Console.WriteLine(settings.Name);
 Console.WriteLine(settings.Count);
 
@@ -177,12 +179,13 @@ public sealed class AppSettings
 `GetValue()` 会对当前 snapshot 执行精确的完整字符串查找；如果 key 不存在，则返回 `null`。
 像 `:` 和 `.` 这样的字符是 key 名称的一部分；PicoCfg 不会把它们解释成层级遍历。
 
-### 稳定快照
+### 已发布的配置视图 [advanced]
 
-`ICfgRoot.Snapshot` 会暴露当前已发布的只读 snapshot。
-如果 reload 没有发布新的 snapshot，则保留同一个 snapshot 实例。
+`ICfgRoot` 始终从当前已发布的组合配置视图中读取。
+如果 reload 没有发布新的视图，读取仍会继续观察相同的已发布状态。
 Root 的发布依据是组合后的 provider snapshot 序列，而不只是最终合并后的可见值。
-在 root dispose 之后，已经获取到的 snapshot 仍然可用。
+
+大多数应用代码应继续使用 `ICfg` 进行精确查找，使用 `ICfgRoot` 处理所有权、reload 与等待语义，使用已绑定的 POCO 进行类型化消费。
 
 ### 生命周期
 
@@ -236,47 +239,27 @@ builder.Add(() => File.OpenRead("app.cfg"));
 
 - `ReloadAsync()` 只有在发布了新的 snapshot 实例时才返回 `true`
 - `ReloadAsync()` 在保留当前 snapshot 实例时返回 `false`
-- `GetChangeSignal()` 返回当前已发布版本对应的 one-shot signal
 - 每次 `ReloadAsync()` 调用最多只会发布一个新的组合 snapshot
-- 在一次已发布的变化之后，如果要等待后续变化，请重新获取一个新的 signal，因为 signal 与单个已发布版本绑定
+- `WaitForChangeAsync()` 是面向 root 使用方的公共变更通知原语
 
 如果 reload 在某些 provider 已经发布了新的 snapshot 版本之后发生异常或被取消，
 root 可能会在 reload task 全部 settle 之后，先发布这些已 settle provider version 所观察到的组合 snapshot，
-然后再重新抛出该失败。发生失败的 reload 之后，如果你需要观察最新已发布状态，应重新读取 `Snapshot` 并获取新的 change signal。
+然后再重新抛出该失败。发生失败的 reload 之后，如果你需要观察最新已发布状态，应通过 `ICfgRoot` 或 `ICfg` 重新读取。
 
 当内置 source 使用 `versionStampFactory` 时，第一次成功完成的 materialization 会建立一个已接受的 authoritative stamp baseline。
 之后任何成功完成的 rematerialization，即使因为 materialized content 未变化而保留当前 snapshot 实例，也会推进这个 baseline。
 之后相等的 stamp（包括重复的 `null`）会跳过 reread、reparse 或 re-enumeration 工作。
 stamp 发生变化时会强制 rematerialization，但如果 materialized content 未变化，当前 snapshot 仍可能被保留。
 
-当所有组合后的 provider snapshot 都是 PicoCfg 的原生 snapshot 类型时，root 会将它们扁平化为一个基于单个 dictionary 的 snapshot，以优化 steady-state 读取。
-如果任一 provider 提供的是自定义 `ICfgSnapshot`，root 会保留该自定义 lookup 行为，并回退为 read-time provider scanning，而不是把这些自定义语义扁平化掉。
-即便在 fallback 组合模式下，仍然遵守正常优先级：后面的 provider 会覆盖前面的 provider。
+内置组合会保留正常优先级，后添加的 source 会覆盖先添加的 source。PicoCfg 可能在内部优化稳定状态下的读取，但不会改变通过 `ICfg` 和 `ICfgRoot` 暴露的精确键行为。
 
 ## 自定义来源
 
-自定义集成基于 `PicoCfg.Abs`。
+`PicoCfg.Abs` 现在专注于最小化的面向消费方契约。更底层的 source 与 provider 组合钩子属于实现细节，不属于主要的应用侧 API。
 
-- `ICfgSource.OpenAsync()` 会把一个 source 打开成一个长期存在的 provider
-- 返回的 provider 必须已经暴露出一个可读的 `Snapshot`
-- `ICfgProvider.ReloadAsync()` 用于报告该 provider 是否发布了新的 snapshot 实例；当返回 `false` 时，表示该 provider version authoritative unchanged，调用方可以继续持有当前 snapshot 引用
-- `ICfgProvider.GetChangeSignal()` 返回当前已发布版本对应的 one-shot signal
+## 高级自定义
 
-最小示例：
-
-```csharp
-using PicoCfg.Abs;
-
-public sealed class CustomSource : ICfgSource
-{
-    public async ValueTask<ICfgProvider> OpenAsync(CancellationToken ct = default)
-    {
-        var provider = new CustomProvider();
-        await provider.ReloadAsync(ct);
-        return provider;
-    }
-}
-```
+主要公共 API 刻意保持精简，只包含 `ICfg`、`ICfgRoot`、`CfgBind` 以及基于它们构建的 DI 辅助。更底层的 builder 与组合钩子保持内部实现状态。
 
 ## Native AOT
 
