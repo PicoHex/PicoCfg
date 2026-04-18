@@ -2,7 +2,7 @@ namespace PicoCfg;
 
 using System.Runtime.ExceptionServices;
 
-internal sealed class CfgRoot : ICfgRoot
+internal sealed class CfgRoot : ICfgRoot, IInternalCfgRootSnapshotAccessor
 {
     private readonly Lock _disposeSyncRoot = new();
     private readonly Lock _syncRoot = new();
@@ -32,7 +32,7 @@ internal sealed class CfgRoot : ICfgRoot
         _changeSignal = _changeSignalFactory();
     }
 
-    public ICfgSnapshot Snapshot
+    private ICfgSnapshot Snapshot
     {
         get
         {
@@ -41,7 +41,10 @@ internal sealed class CfgRoot : ICfgRoot
         }
     }
 
-    public ICfgSnapshot Current => Snapshot;
+    ICfgSnapshot IInternalCfgRootSnapshotAccessor.CurrentSnapshot => Snapshot;
+
+    public bool TryGetValue(string path, out string? value)
+        => Snapshot.TryGetValue(path, out value);
 
     public async ValueTask<bool> ReloadAsync(CancellationToken ct = default)
     {
@@ -58,7 +61,7 @@ internal sealed class CfgRoot : ICfgRoot
         }
     }
 
-    public ICfgChangeSignal GetChangeSignal()
+    internal CfgChangeSignal GetChangeSignal()
     {
         lock (_syncRoot)
             return _changeSignal;

@@ -1,14 +1,13 @@
 namespace PicoCfg.Tests;
 
-public sealed class CfgRuntimeConsumerContractTests
+public sealed class CfgRootConsumerContractTests
 {
     [Test]
-    public async Task Current_ReturnsSameSnapshotAsSnapshotProperty()
+    public async Task Root_ProvidesCurrentPublishedValues()
     {
         await using var root = await Cfg.CreateBuilder().Add("App:Name=PicoCfg").BuildAsync();
 
-        await Assert.That(root.Current).IsSameReferenceAs(root.Snapshot);
-        await Assert.That(root.Current.GetValue("App:Name")).IsEqualTo("PicoCfg");
+        await Assert.That(root.GetValue("App:Name")).IsEqualTo("PicoCfg");
     }
 
     [Test]
@@ -35,7 +34,7 @@ public sealed class CfgRuntimeConsumerContractTests
         await waitTask;
 
         await Assert.That(changed).IsTrue();
-        await Assert.That(root.Current.GetValue("App:Name")).IsEqualTo("After");
+        await Assert.That(root.GetValue("App:Name")).IsEqualTo("After");
         await Assert.That(waitTask.IsCompletedSuccessfully).IsTrue();
     }
 
@@ -77,8 +76,6 @@ public sealed class CfgRuntimeConsumerContractTests
             oldSignal.NotifyChanged();
             return ValueTask.FromResult(true);
         }
-
-        public ICfgChangeSignal GetChangeSignal() => _changeSignal;
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
