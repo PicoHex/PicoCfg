@@ -11,8 +11,8 @@ public sealed class PicoCfgBindRegistrationException : InvalidOperationException
         ArgumentException.ThrowIfNullOrEmpty(operationName);
 
         return new PicoCfgBindRegistrationException(
-            $"No generated PicoCfg.Gen registration was found for '{targetType.FullName}' while calling PicoCfgBind.{operationName}<T>. "
-            + "Ensure the consuming project references PicoCfg.Gen and uses either a direct closed generic PicoCfgBind/ CfgBind call or a direct closed generic PicoCfg.DI RegisterCfgTransient/Scoped/Singleton or RegisterPicoCfgTransient/Scoped/Singleton call so the source generator can register the binder."
+            $"No generated PicoCfg.Gen registration was found for '{targetType.FullName}' while calling CfgBind.{operationName}<T>. "
+            + "Ensure the consuming project references PicoCfg.Gen and uses either a direct closed generic CfgBind call or a direct closed generic PicoCfg.DI RegisterCfgTransient/Scoped/Singleton call so the source generator can register the binder."
         );
     }
 
@@ -27,7 +27,7 @@ public sealed class PicoCfgBindRegistrationException : InvalidOperationException
         ArgumentException.ThrowIfNullOrEmpty(operationName);
 
         return new PicoCfgBindRegistrationException(
-            $"Generated PicoCfg.Gen registration for '{targetType.FullName}' is incompatible while calling PicoCfgBind.{operationName}<T>. "
+            $"Generated PicoCfg.Gen registration for '{targetType.FullName}' is incompatible while calling CfgBind.{operationName}<T>. "
             + $"Expected contract version {expectedContractVersion}, but the generated registration reported version {actualContractVersion}."
         );
     }
