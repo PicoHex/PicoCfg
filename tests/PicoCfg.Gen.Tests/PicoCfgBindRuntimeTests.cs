@@ -2,15 +2,13 @@ namespace PicoCfg.Gen.Tests;
 
 using System.Diagnostics.CodeAnalysis;
 
-#pragma warning disable CS0618
-
 public class PicoCfgBindRuntimeTests
 {
     [Test]
-    public async Task PicoCfgBind_RuntimeLivesInPicoCfgAssembly()
+    public async Task CfgBind_RuntimeLivesInPicoCfgAssembly()
     {
-        await Assert.That(typeof(PicoCfgBind).Assembly).IsSameReferenceAs(typeof(Cfg).Assembly);
-        await Assert.That(typeof(PicoCfgBindRuntime).Assembly).IsSameReferenceAs(typeof(Cfg).Assembly);
+        await Assert.That(typeof(CfgBind).Assembly).IsSameReferenceAs(typeof(Cfg).Assembly);
+        await Assert.That(typeof(CfgBindRuntime).Assembly).IsSameReferenceAs(typeof(Cfg).Assembly);
     }
 
     [Test]
@@ -32,7 +30,7 @@ public class PicoCfgBindRuntimeTests
             )
             .BuildAsync();
 
-        var model = PicoCfgBind.Bind<FlatSettings>(root);
+        var model = CfgBind.Bind<FlatSettings>(root);
 
         await Assert.That(model.Name).IsEqualTo("PicoCfg");
         await Assert.That(model.Enabled).IsTrue();
@@ -61,7 +59,7 @@ public class PicoCfgBindRuntimeTests
             )
             .BuildAsync();
 
-        var model = PicoCfgBind.Bind<FlatSettings>(root, section: "App");
+        var model = CfgBind.Bind<FlatSettings>(root, section: "App");
 
         await Assert.That(model.Name).IsEqualTo("NestedOnlyByKey");
         await Assert.That(model.Count).IsEqualTo(9);
@@ -82,7 +80,7 @@ public class PicoCfgBindRuntimeTests
             )
             .BuildAsync();
 
-        var thrown = await Assert.That(() => PicoCfgBind.Bind<FlatSettings>((ICfg)root)).Throws<FormatException>();
+        var thrown = await Assert.That(() => CfgBind.Bind<FlatSettings>((ICfg)root)).Throws<FormatException>();
         await Assert.That(thrown).IsNotNull();
         await Assert.That(thrown.Message).Contains("Enabled");
     }
@@ -101,7 +99,7 @@ public class PicoCfgBindRuntimeTests
             )
             .BuildAsync();
 
-        var result = PicoCfgBind.TryBind<FlatSettings>(root, out var value);
+        var result = CfgBind.TryBind<FlatSettings>(root, out var value);
 
         await Assert.That(result).IsFalse();
         await Assert.That(value).IsNull();
@@ -133,7 +131,7 @@ public class PicoCfgBindRuntimeTests
             OptionalCount = 11,
         };
 
-        PicoCfgBind.BindInto((ICfg)root, instance);
+        CfgBind.BindInto((ICfg)root, instance);
 
         await Assert.That(instance.Name).IsEqualTo("Updated");
         await Assert.That(instance.Count).IsEqualTo(8);
@@ -153,7 +151,7 @@ public class PicoCfgBindRuntimeTests
 
         var instance = CtorlessBindIntoOnly.Create(1);
 
-        PicoCfgBind.BindInto(root, instance);
+        CfgBind.BindInto(root, instance);
 
         await Assert.That(instance.Port).IsEqualTo(8080);
     }
@@ -163,9 +161,9 @@ public class PicoCfgBindRuntimeTests
     {
         await using var root = await Cfg.CreateBuilder().Add(new Dictionary<string, string>()).BuildAsync();
 
-        var method = typeof(PicoCfgBind)
+        var method = typeof(CfgBind)
             .GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Single(static method => method.Name == nameof(PicoCfgBind.Bind)
+            .Single(static method => method.Name == nameof(CfgBind.Bind)
                 && method.IsGenericMethodDefinition
                 && method.GetParameters() is [{ ParameterType: { Name: nameof(ICfg) } }, ..]);
 
@@ -181,8 +179,8 @@ public class PicoCfgBindRuntimeTests
     [Test]
     public async Task IncompatibleGeneratedRegistration_FailsFastWithSpecificException()
     {
-        PicoCfgBindRuntime.Register<SkewedSettings>(
-            contractVersion: PicoCfgBindRuntime.ContractVersion + 1,
+        CfgBindRuntime.Register<SkewedSettings>(
+            contractVersion: CfgBindRuntime.ContractVersion + 1,
             bind: static (_, _) => new SkewedSettings(),
             tryBind: static (ICfg cfg, string? section, [MaybeNullWhen(false)] out SkewedSettings value) =>
             {
@@ -196,7 +194,7 @@ public class PicoCfgBindRuntimeTests
 
         await using var root = await Cfg.CreateBuilder().Add(new Dictionary<string, string>()).BuildAsync();
 
-        var thrown = await Assert.That(() => PicoCfgBind.Bind<SkewedSettings>(root)).Throws<PicoCfgBindRegistrationException>();
+        var thrown = await Assert.That(() => CfgBind.Bind<SkewedSettings>(root)).Throws<PicoCfgBindRegistrationException>();
         await Assert.That(thrown).IsNotNull();
         await Assert.That(thrown.Message).Contains("incompatible");
     }
@@ -237,5 +235,3 @@ public class PicoCfgBindRuntimeTests
         public static CtorlessBindIntoOnly Create(int port) => new() { Port = port };
     }
 }
-
-#pragma warning restore CS0618

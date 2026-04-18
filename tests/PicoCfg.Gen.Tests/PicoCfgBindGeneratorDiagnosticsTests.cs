@@ -24,7 +24,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
 
             public static class Entry
             {
-                public static ComplexSettings Run(ICfgSnapshot snapshot) => CfgBind.Bind<ComplexSettings>(snapshot);
+                public static ComplexSettings Run(ICfg cfg) => CfgBind.Bind<ComplexSettings>(cfg);
             }
             """
         );
@@ -48,7 +48,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
 
             public static class Entry
             {
-                public static CollectionSettings Run(ICfgSnapshot snapshot) => CfgBind.Bind<CollectionSettings>(snapshot);
+                public static CollectionSettings Run(ICfg cfg) => CfgBind.Bind<CollectionSettings>(cfg);
             }
             """
         );
@@ -72,7 +72,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
 
             public static class Entry
             {
-                public static NoCtorSettings Run(ICfgSnapshot snapshot) => CfgBind.Bind<NoCtorSettings>(snapshot);
+                public static NoCtorSettings Run(ICfg cfg) => CfgBind.Bind<NoCtorSettings>(cfg);
             }
             """
         );
@@ -95,7 +95,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
 
             public static class Entry<T>
             {
-                public static GenericSettings<T> Run(ICfgSnapshot snapshot) => CfgBind.Bind<GenericSettings<T>>(snapshot);
+                public static GenericSettings<T> Run(ICfg cfg) => CfgBind.Bind<GenericSettings<T>>(cfg);
             }
             """
         );
@@ -139,8 +139,8 @@ public class PicoCfgBindGeneratorDiagnosticsTests
 
         var explicitAssemblies = new[]
         {
-            typeof(ICfgSnapshot).Assembly.Location,
-            typeof(PicoCfgBind).Assembly.Location,
+            typeof(ICfg).Assembly.Location,
+            typeof(CfgBind).Assembly.Location,
         };
 
         return trustedPlatformAssemblies

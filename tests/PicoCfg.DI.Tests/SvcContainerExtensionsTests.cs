@@ -31,28 +31,6 @@ public sealed class SvcContainerExtensionsTests
     }
 
     [Test]
-    public async Task RegisterPicoCfgSnapshot_RegistersCfgAndSupportsBinding()
-    {
-        var snapshot = new InlineSnapshot(CreateSettingsData("Snapshot", 7));
-
-        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
-
-        container
-            .RegisterPicoCfg(snapshot)
-            .RegisterPicoCfgTransient<AppSettings>("App");
-
-        using var scope = container.CreateScope();
-        var resolvedCfg = scope.GetService<ICfg>();
-        var resolvedSnapshot = scope.GetService<ICfgSnapshot>();
-        var settings = scope.GetService<AppSettings>();
-
-        await Assert.That(resolvedCfg.GetValue("App:Name")).IsEqualTo("Snapshot");
-        await Assert.That(resolvedSnapshot).IsSameReferenceAs(snapshot);
-        await Assert.That(settings.Name).IsEqualTo("Snapshot");
-        await Assert.That(settings.Count).IsEqualTo(7);
-    }
-
-    [Test]
     public async Task RegisterCfgRoot_RegistersRootWithoutDefaultSnapshotService()
     {
         var state = CreateSettingsData("Before", 1);
@@ -78,26 +56,6 @@ public sealed class SvcContainerExtensionsTests
         var cfgAfter = scope.GetService<ICfg>();
 
         await Assert.That(cfgAfter.GetValue("App:Name")).IsEqualTo("After");
-    }
-
-    [Test]
-    public async Task RegisterCfgSnapshot_RegistersSnapshotAndSupportsBoundTransient()
-    {
-        var snapshot = new InlineSnapshot(CreateSettingsData("Snapshot", 7));
-
-        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
-
-        container
-            .RegisterCfgSnapshot(snapshot)
-            .RegisterCfgTransient<AppSettings>("App");
-
-        using var scope = container.CreateScope();
-        var resolvedSnapshot = scope.GetService<ICfgSnapshot>();
-        var settings = scope.GetService<AppSettings>();
-
-        await Assert.That(resolvedSnapshot).IsSameReferenceAs(snapshot);
-        await Assert.That(settings.Name).IsEqualTo("Snapshot");
-        await Assert.That(settings.Count).IsEqualTo(7);
     }
 
     [Test]
@@ -249,18 +207,4 @@ public sealed class SvcContainerExtensionsTests
         public int Count { get; set; }
     }
 
-    private sealed class InlineSnapshot(IReadOnlyDictionary<string, string> values) : ICfgSnapshot
-    {
-        public bool TryGetValue(string path, out string? value)
-        {
-            if (values.TryGetValue(path, out var resolved))
-            {
-                value = resolved;
-                return true;
-            }
-
-            value = null;
-            return false;
-        }
-    }
 }
