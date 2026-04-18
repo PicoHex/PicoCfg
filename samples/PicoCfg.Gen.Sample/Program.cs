@@ -14,7 +14,7 @@ await using var root = await Cfg
     })
     .BuildAsync();
 
-var settings = PicoCfgBind.Bind<AppSettings>(root, "App");
+var settings = CfgBind.Bind<AppSettings>(root, "App");
 
 Console.WriteLine($"Name: {settings.Name}");
 Console.WriteLine($"Enabled: {settings.Enabled}");
@@ -34,7 +34,7 @@ var existing = new AppSettings
     Mode = SampleMode.Basic,
 };
 
-PicoCfgBind.BindInto(root, existing, "App");
+CfgBind.BindInto(root, existing, "App");
 
 Console.WriteLine();
 Console.WriteLine("BindInto result:");

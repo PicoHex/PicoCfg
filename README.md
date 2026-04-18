@@ -68,7 +68,7 @@ Later sources override earlier ones.
 
 ## Generated Binding with PicoCfg.Gen
 
-`PicoCfg.Gen` adds the source generator for PicoCfg's exact-key snapshot model, while `PicoCfg` provides the `PicoCfgBind` runtime API used by the generated binder.
+`PicoCfg.Gen` adds the source generator for PicoCfg's exact-key snapshot model, while `PicoCfg` provides the `CfgBind` runtime API used by the generated binder.
 The generated binder is synchronous, trim-friendly, and designed for Native AOT scenarios.
 
 ```csharp
@@ -85,7 +85,7 @@ await using var root = await Cfg
     })
     .BuildAsync();
 
-var settings = PicoCfgBind.Bind<AppSettings>(root, "App");
+var settings = CfgBind.Bind<AppSettings>(root, "App");
 
 Console.WriteLine(settings.Name);
 Console.WriteLine(settings.Enabled);
@@ -101,16 +101,16 @@ public sealed class AppSettings
 
 With `PicoCfg.Gen` referenced, the generated-binding surface is:
 
-- `PicoCfgBind.Bind<T>(ICfgSnapshot, section?)`
-- `PicoCfgBind.Bind<T>(ICfgRoot, section?)`
-- `PicoCfgBind.TryBind<T>(...)`
-- `PicoCfgBind.BindInto<T>(...)`
+- `CfgBind.Bind<T>(ICfgSnapshot, section?)`
+- `CfgBind.Bind<T>(ICfgRoot, section?)`
+- `CfgBind.TryBind<T>(...)`
+- `CfgBind.BindInto<T>(...)`
 
 ### PicoCfg.Gen v1 scope
 
 The current generated binder intentionally stays narrow:
 
-- direct closed generic `PicoCfgBind` calls only
+- direct closed generic `CfgBind` calls only
 - concrete class targets only
 - flat public writable scalar properties only
 - exact case-sensitive property-name matching
