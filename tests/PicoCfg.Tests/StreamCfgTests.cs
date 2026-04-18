@@ -158,43 +158,40 @@ public class StreamCfgTests
     }
 
     [Test]
-    public async Task StreamCfgProvider_GetChangeSignal_ReturnsCurrentSignal()
+    public async Task StreamCfgProvider_ReloadAsync_PublishesSnapshotAndRetainsStableRead()
     {
         var streamFactory = () => new MemoryStream(Encoding.UTF8.GetBytes("key1=value1"));
         var provider = TestCfgFactory.CreateStreamProvider(streamFactory);
 
-        var changeSignal = provider.GetChangeSignal();
+        var changed = await provider.ReloadAsync();
 
-        await Assert.That(changeSignal).IsNotNull();
-        await Assert.That(changeSignal.HasChanged).IsFalse();
+        await Assert.That(changed).IsTrue();
+        await Assert.That(provider.Snapshot.GetValue("key1")).IsEqualTo("value1");
     }
 
     [Test]
-    public async Task StreamCfgProvider_ReloadAsync_ChangesSignalOnlyWhenDataChanges()
+    public async Task StreamCfgProvider_ReloadAsync_ChangesSnapshotOnlyWhenDataChanges()
     {
         var currentContent = "key1=value1";
         var provider = TestCfgFactory.CreateStreamProvider(
             () => new MemoryStream(Encoding.UTF8.GetBytes(currentContent))
         );
 
-        var initialSignal = provider.GetChangeSignal();
         var initialChanged = await provider.ReloadAsync();
+        var initialSnapshot = provider.Snapshot;
 
         await Assert.That(initialChanged).IsTrue();
-        await Assert.That(initialSignal.HasChanged).IsTrue();
 
-        var unchangedSignal = provider.GetChangeSignal();
         var unchanged = await provider.ReloadAsync();
+        var unchangedSnapshot = provider.Snapshot;
         await Assert.That(unchanged).IsFalse();
-        await Assert.That(unchangedSignal.HasChanged).IsFalse();
+        await Assert.That(unchangedSnapshot).IsSameReferenceAs(initialSnapshot);
 
         currentContent = "key1=value2";
         var changed = await provider.ReloadAsync();
         await Assert.That(changed).IsTrue();
-        await Assert.That(unchangedSignal.HasChanged).IsTrue();
-
-        var latestSignal = provider.GetChangeSignal();
-        await Assert.That(latestSignal.HasChanged).IsFalse();
+        await Assert.That(provider.Snapshot).IsNotSameReferenceAs(initialSnapshot);
+        await Assert.That(provider.Snapshot.GetValue("key1")).IsEqualTo("value2");
     }
 
     [Test]
@@ -203,28 +200,6 @@ public class StreamCfgTests
         var provider = TestCfgFactory.CreateStreamProvider(() => null!);
 
         await Assert.That(async () => await provider.ReloadAsync()).Throws<InvalidOperationException>();
-    }
-
-    [Test]
-    public async Task StreamCfgProvider_GetChangeSignal_AfterReload_WaitsForFutureChange()
-    {
-        var currentContent = "key1=value1";
-        var provider = TestCfgFactory.CreateStreamProvider(
-            () => new MemoryStream(Encoding.UTF8.GetBytes(currentContent))
-        );
-
-        _ = await provider.ReloadAsync();
-        var changeSignal = provider.GetChangeSignal();
-        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var waitTask = changeSignal.WaitForChangeAsync(cts.Token).AsTask();
-        await Assert.That(waitTask.IsCompleted).IsFalse();
-
-        currentContent = "key1=value2";
-        var changed = await provider.ReloadAsync();
-
-        await Assert.That(changed).IsTrue();
-        await waitTask;
-        await Assert.That(waitTask.IsCompleted).IsTrue();
     }
 
     [Test]
@@ -478,8 +453,8 @@ public class StreamCfgTests
 
         var config = await builder.BuildAsync();
 
-        await Assert.That(config.Snapshot.GetValue("withEquals")).IsEqualTo("a=b=c");
-        await Assert.That(config.Snapshot.GetValue("withNewLine")).IsEqualTo("line1\nline2");
+        await Assert.That(config.GetValue("withEquals")).IsEqualTo("a=b=c");
+        await Assert.That(config.GetValue("withNewLine")).IsEqualTo("line1\nline2");
     }
 
     [Test]
@@ -506,6 +481,6 @@ public class StreamCfgTests
 
         await Assert.That(changed).IsFalse();
         await Assert.That(calls).IsEqualTo(1);
-        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("value1");
+        await Assert.That(root.GetValue("key")).IsEqualTo("value1");
     }
 }

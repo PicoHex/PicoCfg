@@ -2,6 +2,8 @@ namespace PicoCfg.Tests;
 
 public class CfgBuilderTests
 {
+    private static ICfgSnapshot SnapshotOf(ICfgRoot root) => ((IInternalCfgRootSnapshotAccessor)root).CurrentSnapshot;
+
     [Test]
     public async Task AddSource_AddsSourceToBuilder()
     {
@@ -29,7 +31,7 @@ public class CfgBuilderTests
         var root = await builder.BuildAsync();
 
         await Assert.That(root).IsNotNull();
-        await Assert.That(root.Snapshot.GetValue("missing")).IsNull();
+        await Assert.That(root.GetValue("missing")).IsNull();
     }
 
     [Test]
@@ -41,7 +43,7 @@ public class CfgBuilderTests
 
         var root = await builder.BuildAsync();
 
-        await Assert.That(root.Snapshot.GetValue("sourceKey")).IsEqualTo("sourceValue");
+        await Assert.That(root.GetValue("sourceKey")).IsEqualTo("sourceValue");
     }
 
     [Test]
@@ -55,7 +57,7 @@ public class CfgBuilderTests
 
         var root = await builder.BuildAsync();
 
-        await Assert.That(root.Snapshot.GetValue("shared")).IsEqualTo("second");
+        await Assert.That(root.GetValue("shared")).IsEqualTo("second");
     }
 
     [Test]
@@ -98,7 +100,7 @@ public class CfgBuilderTests
 
         var root = await builder.BuildAsync();
 
-        await Assert.That(root.Snapshot.GetValue("factoryKey")).IsEqualTo("factoryValue");
+        await Assert.That(root.GetValue("factoryKey")).IsEqualTo("factoryValue");
     }
 
     [Test]
@@ -116,8 +118,8 @@ public class CfgBuilderTests
         await using var firstRoot = await builder.BuildAsync();
         await using var secondRoot = await builder.BuildAsync();
 
-        await Assert.That(firstRoot.Snapshot.GetValue("key")).IsEqualTo("before");
-        await Assert.That(secondRoot.Snapshot.GetValue("key")).IsEqualTo("before");
+        await Assert.That(firstRoot.GetValue("key")).IsEqualTo("before");
+        await Assert.That(secondRoot.GetValue("key")).IsEqualTo("before");
 
         stamp = 2;
         value = "after";
@@ -125,13 +127,13 @@ public class CfgBuilderTests
         var firstChanged = await firstRoot.ReloadAsync();
 
         await Assert.That(firstChanged).IsTrue();
-        await Assert.That(firstRoot.Snapshot.GetValue("key")).IsEqualTo("after");
-        await Assert.That(secondRoot.Snapshot.GetValue("key")).IsEqualTo("before");
+        await Assert.That(firstRoot.GetValue("key")).IsEqualTo("after");
+        await Assert.That(secondRoot.GetValue("key")).IsEqualTo("before");
 
         var secondChanged = await secondRoot.ReloadAsync();
 
         await Assert.That(secondChanged).IsTrue();
-        await Assert.That(secondRoot.Snapshot.GetValue("key")).IsEqualTo("after");
+        await Assert.That(secondRoot.GetValue("key")).IsEqualTo("after");
     }
 
     [Test]
@@ -153,7 +155,7 @@ public class CfgBuilderTests
         await using var root = await builder.BuildAsync();
 
         await Assert.That(parserCalls).IsEqualTo(1);
-        await Assert.That(root.Snapshot.GetValue("parsed")).IsEqualTo("custom:not-valid-default-format");
+        await Assert.That(root.GetValue("parsed")).IsEqualTo("custom:not-valid-default-format");
     }
 
     [Test]
@@ -174,9 +176,9 @@ public class CfgBuilderTests
         await using var root = await builder.BuildAsync();
 
         await Assert.That(parserCalls).IsEqualTo(1);
-        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("a=b=c");
-        await Assert.That(root.Snapshot.GetValue("other")).IsEqualTo("value");
-        await Assert.That(root.Snapshot.GetValue("invalid")).IsNull();
+        await Assert.That(root.GetValue("key")).IsEqualTo("a=b=c");
+        await Assert.That(root.GetValue("other")).IsEqualTo("value");
+        await Assert.That(root.GetValue("invalid")).IsNull();
     }
 
     [Test]
@@ -196,13 +198,13 @@ public class CfgBuilderTests
 
         await using var root = await builder.BuildAsync();
 
-        await Assert.That(root.Snapshot).IsSameReferenceAs(initialSnapshot);
+        await Assert.That(SnapshotOf(root)).IsSameReferenceAs(initialSnapshot);
 
         var changed = await root.ReloadAsync();
 
         await Assert.That(changed).IsTrue();
         await Assert.That(composeCalls).IsEqualTo(2);
-        await Assert.That(root.Snapshot).IsSameReferenceAs(reloadedSnapshot);
+        await Assert.That(SnapshotOf(root)).IsSameReferenceAs(reloadedSnapshot);
     }
 
     [Test]
@@ -225,8 +227,8 @@ public class CfgBuilderTests
         await using var root = await builder.BuildAsync();
 
         await Assert.That(composeCalls).IsEqualTo(1);
-        await Assert.That(root.Snapshot.GetValue("shared")).IsEqualTo("second");
-        await Assert.That(root.Snapshot.GetValue("other")).IsEqualTo("value");
+        await Assert.That(root.GetValue("shared")).IsEqualTo("second");
+        await Assert.That(root.GetValue("other")).IsEqualTo("value");
     }
 
     private sealed class StaticSource(ICfgProvider provider) : ICfgSource
@@ -251,8 +253,6 @@ public class CfgBuilderTests
             Snapshot = _snapshots[_index];
             return ValueTask.FromResult(true);
         }
-
-        public ICfgChangeSignal GetChangeSignal() => new MockChangeToken();
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
@@ -283,11 +283,6 @@ public class CfgBuilderTests
             return ValueTask.FromResult(false);
         }
 
-        public ICfgChangeSignal GetChangeSignal()
-        {
-            return new MockChangeToken();
-        }
-
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
@@ -303,16 +298,6 @@ public class CfgBuilderTests
 
             resolvedValue = null;
             return false;
-        }
-    }
-
-    private class MockChangeToken : ICfgChangeSignal
-    {
-        public bool HasChanged => false;
-
-        public ValueTask WaitForChangeAsync(CancellationToken ct = default)
-        {
-            return ValueTask.CompletedTask;
         }
     }
 
@@ -349,11 +334,6 @@ public class CfgBuilderTests
         public ValueTask<bool> ReloadAsync(CancellationToken ct = default)
         {
             return ValueTask.FromResult(false);
-        }
-
-        public ICfgChangeSignal GetChangeSignal()
-        {
-            return new MockChangeToken();
         }
 
         public ValueTask DisposeAsync()

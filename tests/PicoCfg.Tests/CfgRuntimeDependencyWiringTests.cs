@@ -19,13 +19,15 @@ public class CfgRuntimeDependencyWiringTests
 
         await using var root = await builder.BuildAsync();
 
-        await Assert.That(root.GetChangeSignal()).IsSameReferenceAs(initialSignal);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var waitTask = root.WaitForChangeAsync(cts.Token).AsTask();
 
         var changed = await root.ReloadAsync();
 
         await Assert.That(changed).IsTrue();
+        await waitTask;
         await Assert.That(initialSignal.HasChanged).IsTrue();
-        await Assert.That(root.GetChangeSignal()).IsSameReferenceAs(nextSignal);
+        await Assert.That(nextSignal.HasChanged).IsFalse();
     }
 
     [Test]
@@ -41,8 +43,7 @@ public class CfgRuntimeDependencyWiringTests
 
         await using var root = await builder.BuildAsync();
 
-        await Assert.That(root.Snapshot).IsSameReferenceAs(composedSnapshot);
-        await Assert.That(root.Snapshot.GetValue("composed")).IsEqualTo("from-factory");
+        await Assert.That(root.GetValue("composed")).IsEqualTo("from-factory");
     }
 
     [Test]
@@ -59,8 +60,7 @@ public class CfgRuntimeDependencyWiringTests
 
         await using var root = await builder.BuildAsync();
 
-        await Assert.That(root.Snapshot).IsSameReferenceAs(publishedSnapshot);
-        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("from-factory");
+        await Assert.That(root.GetValue("key")).IsEqualTo("from-factory");
     }
 
     [Test]
@@ -76,15 +76,13 @@ public class CfgRuntimeDependencyWiringTests
             TestCfgFactory.CreateProviderState(() => signals.Dequeue(), (_, _) => publishedSnapshot)
         );
 
-        await Assert.That(provider.GetChangeSignal()).IsSameReferenceAs(initialSignal);
-
         var changed = await provider.ReloadAsync();
 
         await Assert.That(changed).IsTrue();
         await Assert.That(provider.Snapshot).IsSameReferenceAs(publishedSnapshot);
         await Assert.That(provider.Snapshot.GetValue("key")).IsEqualTo("from-factory");
         await Assert.That(initialSignal.HasChanged).IsTrue();
-        await Assert.That(provider.GetChangeSignal()).IsSameReferenceAs(nextSignal);
+        await Assert.That(nextSignal.HasChanged).IsFalse();
     }
 
     private sealed class StaticSource(ICfgProvider provider) : ICfgSource
@@ -109,8 +107,6 @@ public class CfgRuntimeDependencyWiringTests
             Snapshot = _snapshots[_index];
             return ValueTask.FromResult(true);
         }
-
-        public ICfgChangeSignal GetChangeSignal() => new CfgChangeSignal();
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

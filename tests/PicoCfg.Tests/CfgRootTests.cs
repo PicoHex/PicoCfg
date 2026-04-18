@@ -2,12 +2,14 @@ namespace PicoCfg.Tests;
 
 public class CfgRootTests
 {
+    private static ICfgSnapshot SnapshotOf(CfgRoot root) => ((IInternalCfgRootSnapshotAccessor)root).CurrentSnapshot;
+
     [Test]
     public async Task Snapshot_WithNoProviders_ReturnsMissingValues()
     {
         var root = TestCfgFactory.CreateRoot([]);
 
-        await Assert.That(root.Snapshot.GetValue("key")).IsNull();
+        await Assert.That(root.GetValue("key")).IsNull();
     }
 
     [Test]
@@ -16,7 +18,7 @@ public class CfgRootTests
         var provider = new MockProvider([new Dictionary<string, string> { ["key"] = "value" }]);
         var root = TestCfgFactory.CreateRoot([provider]);
 
-        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("value");
+        await Assert.That(root.GetValue("key")).IsEqualTo("value");
     }
 
     [Test]
@@ -26,7 +28,7 @@ public class CfgRootTests
         var provider2 = new MockProvider([new Dictionary<string, string> { ["key"] = "second" }]);
         var root = TestCfgFactory.CreateRoot([provider1, provider2]);
 
-        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("second");
+        await Assert.That(root.GetValue("key")).IsEqualTo("second");
     }
 
     [Test]
@@ -39,14 +41,14 @@ public class CfgRootTests
             ]
         );
         var root = TestCfgFactory.CreateRoot([provider]);
-        var originalSnapshot = root.Snapshot;
+        var originalSnapshot = SnapshotOf(root);
 
         var changed = await root.ReloadAsync();
 
         await Assert.That(provider.ReloadCount).IsEqualTo(1);
         await Assert.That(changed).IsTrue();
-        await Assert.That(root.Snapshot).IsNotSameReferenceAs(originalSnapshot);
-        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("after");
+        await Assert.That(SnapshotOf(root)).IsNotSameReferenceAs(originalSnapshot);
+        await Assert.That(root.GetValue("key")).IsEqualTo("after");
         await Assert.That(originalSnapshot.GetValue("key")).IsEqualTo("before");
     }
 
@@ -60,12 +62,12 @@ public class CfgRootTests
             ]
         );
         var root = TestCfgFactory.CreateRoot([provider]);
-        var originalSnapshot = root.Snapshot;
+        var originalSnapshot = SnapshotOf(root);
 
         var changed = await root.ReloadAsync();
 
         await Assert.That(changed).IsFalse();
-        await Assert.That(root.Snapshot).IsSameReferenceAs(originalSnapshot);
+        await Assert.That(SnapshotOf(root)).IsSameReferenceAs(originalSnapshot);
     }
 
     [Test]
@@ -79,15 +81,14 @@ public class CfgRootTests
         );
         var provider2 = new FailingReloadProvider();
         var root = TestCfgFactory.CreateRoot([provider1, provider2]);
-        var originalSnapshot = root.Snapshot;
-        var changeSignal = root.GetChangeSignal();
+        var originalSnapshot = SnapshotOf(root);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var waitTask = root.WaitForChangeAsync(cts.Token).AsTask();
 
         await Assert.That(async () => await root.ReloadAsync()).Throws<InvalidOperationException>();
-        await Assert.That(root.Snapshot).IsNotSameReferenceAs(originalSnapshot);
-        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("after");
-        await Assert.That(changeSignal.HasChanged).IsTrue();
-        await Assert.That(root.GetChangeSignal()).IsNotSameReferenceAs(changeSignal);
-        await Assert.That(root.GetChangeSignal().HasChanged).IsFalse();
+        await waitTask;
+        await Assert.That(SnapshotOf(root)).IsNotSameReferenceAs(originalSnapshot);
+        await Assert.That(root.GetValue("key")).IsEqualTo("after");
         await Assert.That(originalSnapshot.GetValue("key")).IsEqualTo("before");
     }
 
@@ -97,13 +98,13 @@ public class CfgRootTests
         var provider1 = new MockProvider([new Dictionary<string, string> { ["key"] = "same" }]);
         var provider2 = new FailingReloadProvider();
         var root = TestCfgFactory.CreateRoot([provider1, provider2]);
-        var originalSnapshot = root.Snapshot;
-        var changeSignal = root.GetChangeSignal();
+        var originalSnapshot = SnapshotOf(root);
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
         await Assert.That(async () => await root.ReloadAsync()).Throws<InvalidOperationException>();
-        await Assert.That(root.Snapshot).IsSameReferenceAs(originalSnapshot);
-        await Assert.That(changeSignal.HasChanged).IsFalse();
-        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("same");
+        await Assert.That(SnapshotOf(root)).IsSameReferenceAs(originalSnapshot);
+        await Assert.That(async () => await root.WaitForChangeAsync(cts.Token)).Throws<OperationCanceledException>();
+        await Assert.That(root.GetValue("key")).IsEqualTo("same");
     }
 
     [Test]
@@ -120,8 +121,8 @@ public class CfgRootTests
         await Assert.That(provider1.MaxConcurrentReloads).IsEqualTo(1);
         await Assert.That(provider2.MaxConcurrentReloads).IsEqualTo(1);
         await Assert.That(coordination.MaxObservedConcurrentReloads).IsEqualTo(2);
-        await Assert.That(root.Snapshot.GetValue("first")).IsEqualTo("value1");
-        await Assert.That(root.Snapshot.GetValue("second")).IsEqualTo("value2");
+        await Assert.That(root.GetValue("first")).IsEqualTo("value1");
+        await Assert.That(root.GetValue("second")).IsEqualTo("value2");
     }
 
     [Test]
@@ -142,7 +143,7 @@ public class CfgRootTests
     }
 
     [Test]
-    public async Task GetChangeSignal_ChangesWhenRootReloadUpdatesSnapshot()
+    public async Task WaitForChangeAsync_CompletesWhenRootReloadUpdatesSnapshot()
     {
         var provider = new MockProvider(
             [
@@ -152,27 +153,30 @@ public class CfgRootTests
         );
         var root = TestCfgFactory.CreateRoot([provider]);
 
-        var changeSignal = root.GetChangeSignal();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var waitTask = root.WaitForChangeAsync(cts.Token).AsTask();
         var changed = await root.ReloadAsync();
 
         await Assert.That(changed).IsTrue();
-        await Assert.That(changeSignal.HasChanged).IsTrue();
+        await waitTask;
+        await Assert.That(waitTask.IsCompletedSuccessfully).IsTrue();
     }
 
     [Test]
-    public async Task GetChangeSignal_DoesNotChangeUntilRootSnapshotChanges()
+    public async Task WaitForChangeAsync_DoesNotCompleteUntilRootSnapshotChanges()
     {
         var provider = new MockProvider([new Dictionary<string, string> { ["key"] = "value" }]);
         var root = TestCfgFactory.CreateRoot([provider]);
 
-        var changeSignal = root.GetChangeSignal();
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        var waitTask = root.WaitForChangeAsync(cts.Token).AsTask();
         provider.NotifyChanged();
 
-        await Assert.That(changeSignal.HasChanged).IsFalse();
+        await Assert.That(async () => await waitTask).Throws<OperationCanceledException>();
     }
 
     [Test]
-    public async Task GetChangeSignal_ReturnsFreshSignalAfterReload()
+    public async Task WaitForChangeAsync_NewWaitTracksNextReload()
     {
         var provider = new MockProvider(
             [
@@ -182,14 +186,17 @@ public class CfgRootTests
         );
         var root = TestCfgFactory.CreateRoot([provider]);
 
-        var changeSignal1 = root.GetChangeSignal();
+        using var firstCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var firstWait = root.WaitForChangeAsync(firstCts.Token).AsTask();
         var changed = await root.ReloadAsync();
-        var changeSignal2 = root.GetChangeSignal();
+        await firstWait;
+
+        using var secondCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        var secondWait = root.WaitForChangeAsync(secondCts.Token).AsTask();
 
         await Assert.That(changed).IsTrue();
-        await Assert.That(changeSignal1.HasChanged).IsTrue();
-        await Assert.That(changeSignal2.HasChanged).IsFalse();
-        await Assert.That(changeSignal2).IsNotSameReferenceAs(changeSignal1);
+        await Assert.That(firstWait.IsCompletedSuccessfully).IsTrue();
+        await Assert.That(async () => await secondWait).Throws<OperationCanceledException>();
     }
 
     [Test]
@@ -239,24 +246,23 @@ public class CfgRootTests
     [Test]
     public async Task ReloadAsync_WhenProviderCancellationOccurs_PublishesObservedProviderStateBeforeRethrowing()
     {
-        using var cts = new CancellationTokenSource();
+        using var cancelSource = new CancellationTokenSource();
         var provider1 = new MockProvider(
             [
                 new Dictionary<string, string> { ["key"] = "before" },
                 new Dictionary<string, string> { ["key"] = "after" },
             ]
         );
-        var provider2 = new CancelingReloadProvider(cts);
+        var provider2 = new CancelingReloadProvider(cancelSource);
         var root = TestCfgFactory.CreateRoot([provider1, provider2]);
-        var originalSnapshot = root.Snapshot;
-        var changeSignal = root.GetChangeSignal();
+        var originalSnapshot = SnapshotOf(root);
+        using var waitCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var waitTask = root.WaitForChangeAsync(waitCts.Token).AsTask();
 
-        await Assert.That(async () => await root.ReloadAsync(cts.Token)).Throws<OperationCanceledException>();
-        await Assert.That(root.Snapshot).IsNotSameReferenceAs(originalSnapshot);
-        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("after");
-        await Assert.That(changeSignal.HasChanged).IsTrue();
-        await Assert.That(root.GetChangeSignal()).IsNotSameReferenceAs(changeSignal);
-        await Assert.That(root.GetChangeSignal().HasChanged).IsFalse();
+        await Assert.That(async () => await root.ReloadAsync(cancelSource.Token)).Throws<OperationCanceledException>();
+        await waitTask;
+        await Assert.That(SnapshotOf(root)).IsNotSameReferenceAs(originalSnapshot);
+        await Assert.That(root.GetValue("key")).IsEqualTo("after");
         await Assert.That(originalSnapshot.GetValue("key")).IsEqualTo("before");
     }
 
@@ -266,7 +272,7 @@ public class CfgRootTests
         var provider1 = new DeferredPublishingProvider("key", "before", "after");
         var provider2 = new FailingReloadProvider();
         var root = TestCfgFactory.CreateRoot([provider1, provider2]);
-        var originalSnapshot = root.Snapshot;
+        var originalSnapshot = SnapshotOf(root);
 
         var reloadTask = root.ReloadAsync().AsTask();
         await provider1.WaitForReloadStartedAsync();
@@ -275,8 +281,8 @@ public class CfgRootTests
         provider1.CompleteReload();
 
         await Assert.That(async () => await reloadTask).Throws<InvalidOperationException>();
-        await Assert.That(root.Snapshot).IsNotSameReferenceAs(originalSnapshot);
-        await Assert.That(root.Snapshot.GetValue("key")).IsEqualTo("after");
+        await Assert.That(SnapshotOf(root)).IsNotSameReferenceAs(originalSnapshot);
+        await Assert.That(root.GetValue("key")).IsEqualTo("after");
         await Assert.That(originalSnapshot.GetValue("key")).IsEqualTo("before");
     }
 
@@ -318,13 +324,13 @@ public class CfgRootTests
         );
         var provider2 = new MockProvider([new Dictionary<string, string> { ["shared"] = "second" }]);
         var root = TestCfgFactory.CreateRoot([provider1, provider2]);
-        var originalSnapshot = root.Snapshot;
+        var originalSnapshot = SnapshotOf(root);
 
         var changed = await root.ReloadAsync();
 
         await Assert.That(changed).IsTrue();
-        await Assert.That(root.Snapshot).IsNotSameReferenceAs(originalSnapshot);
-        await Assert.That(root.Snapshot.GetValue("shared")).IsEqualTo("second");
+        await Assert.That(SnapshotOf(root)).IsNotSameReferenceAs(originalSnapshot);
+        await Assert.That(root.GetValue("shared")).IsEqualTo("second");
     }
 
     [Test]
@@ -334,7 +340,7 @@ public class CfgRootTests
         var provider2 = new StaticProvider(new DelegatingSnapshot(path => path == "shared" ? "second" : null));
         var root = TestCfgFactory.CreateRoot([provider1, provider2]);
 
-        await Assert.That(root.Snapshot.GetValue("shared")).IsEqualTo("second");
+        await Assert.That(root.GetValue("shared")).IsEqualTo("second");
     }
 
     private sealed class MockProvider : ICfgProvider
@@ -381,11 +387,6 @@ public class CfgRootTests
             return ValueTask.FromResult(false);
         }
 
-        public ICfgChangeSignal GetChangeSignal()
-        {
-            return _changeSignal;
-        }
-
         public ValueTask DisposeAsync()
         {
             DisposeCalled = true;
@@ -410,8 +411,6 @@ public class CfgRootTests
         {
             throw new InvalidOperationException("Reload failed.");
         }
-
-        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
@@ -441,8 +440,6 @@ public class CfgRootTests
                 coordination.Exit();
             }
         }
-
-        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
@@ -494,8 +491,6 @@ public class CfgRootTests
             return ValueTask.FromResult(false);
         }
 
-        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
-
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
@@ -505,8 +500,6 @@ public class CfgRootTests
         public ICfgSnapshot Snapshot { get; } = new MockSnapshot(new Dictionary<string, string>());
 
         public ValueTask<bool> ReloadAsync(CancellationToken ct = default) => ValueTask.FromResult(false);
-
-        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
 
         public ValueTask DisposeAsync()
         {
@@ -538,8 +531,6 @@ public class CfgRootTests
             return true;
         }
 
-        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
-
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public Task WaitForReloadStartedAsync() => _entered.Task;
@@ -561,8 +552,6 @@ public class CfgRootTests
             return await ValueTask.FromException<bool>(failure);
         }
 
-        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
-
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public Task WaitForReloadStartedAsync() => _entered.Task;
@@ -576,8 +565,6 @@ public class CfgRootTests
 
         public ValueTask<bool> ReloadAsync(CancellationToken ct = default) => throw failure;
 
-        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
-
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
@@ -586,8 +573,6 @@ public class CfgRootTests
         public ICfgSnapshot Snapshot { get; } = snapshot;
 
         public ValueTask<bool> ReloadAsync(CancellationToken ct = default) => ValueTask.FromResult(false);
-
-        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
@@ -629,8 +614,6 @@ public class CfgRootTests
             }
         }
 
-        public ICfgChangeSignal GetChangeSignal() => new ControllableMockChangeSignal();
-
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public Task WaitForFirstEntryAsync() => _entered.Task;
@@ -659,7 +642,7 @@ public class CfgRootTests
         }
     }
 
-    private sealed class ControllableMockChangeSignal : ICfgChangeSignal
+    private sealed class ControllableMockChangeSignal
     {
         private CancellationTokenSource _cts = new();
 
