@@ -12,7 +12,7 @@ It composes multiple sources into a stable read-only snapshot, supports explicit
 - small public surface
 - exact string key lookup
 - explicit reload and change-signal semantics
-- custom source support via `PicoCfg.Abs`
+- small consumer contracts via `PicoCfg.Abs`
 - Native AOT-friendly design
 
 ## Installation
@@ -23,13 +23,13 @@ Most applications only need `PicoCfg`:
 dotnet add package PicoCfg
 ```
 
-Use `PicoCfg.Abs` when you only need the contracts for custom integrations or abstractions:
+Use `PicoCfg.Abs` when you only need the minimal consumer contracts such as `ICfg` and `ICfgRoot`:
 
 ```bash
 dotnet add package PicoCfg.Abs
 ```
 
-Use `PicoCfg.Gen` when you want AOT-safe source-generated binding from PicoCfg snapshots or roots into flat POCOs. The package adds the generator, while the `PicoCfgBind` runtime API lives in `PicoCfg`:
+Use `PicoCfg.Gen` when you want AOT-safe source-generated binding from PicoCfg configuration views into flat POCOs. The package adds the generator, while the `CfgBind` runtime API lives in `PicoCfg`:
 
 ```bash
 dotnet add package PicoCfg.Gen
@@ -101,8 +101,8 @@ public sealed class AppSettings
 
 With `PicoCfg.Gen` referenced, the generated-binding surface is:
 
-- `CfgBind.Bind<T>(ICfgSnapshot, section?)`
 - `CfgBind.Bind<T>(ICfgRoot, section?)`
+- `CfgBind.Bind<T>(ICfg, section?)`
 - `CfgBind.TryBind<T>(...)`
 - `CfgBind.BindInto<T>(...)`
 
@@ -131,7 +131,7 @@ The repository also includes `samples/PicoCfg.Gen.Sample` as a small end-to-end 
 ## PicoCfg.DI with PicoDI
 
 `PicoCfg.DI` adds PicoDI-friendly registration helpers on top of `PicoCfg` and `PicoCfg.Gen`.
-Use `RegisterCfgRoot(...)` when you already own an `ICfgRoot`, and `RegisterCfgTransient<T>()` / `RegisterCfgScoped<T>()` / `RegisterCfgSingleton<T>()` when you want generated bound POCOs resolved through PicoDI. `RegisterCfgSnapshot(...)` remains available for advanced fixed-snapshot scenarios, but it is no longer the default DI path.
+Use `RegisterCfgRoot(...)` when you already own an `ICfgRoot`, and `RegisterCfgTransient<T>()` / `RegisterCfgScoped<T>()` / `RegisterCfgSingleton<T>()` when you want generated bound POCOs resolved through PicoDI.
 
 ```csharp
 using PicoCfg;
@@ -185,7 +185,7 @@ Characters such as `:` and `.` are part of the key name; PicoCfg does not interp
 If reload does not publish a new view, reads continue to observe the same published state.
 Root publication follows the composed provider snapshot sequence, not only the final merged visible values.
 
-Most application code should stay on `ICfg` for exact lookups, `ICfgRoot` for ownership/reload/wait semantics, and bound POCOs for typed consumption. `ICfgSnapshot` remains an advanced abstraction for provider composition and specialized binding scenarios.
+Most application code should stay on `ICfg` for exact lookups, `ICfgRoot` for ownership/reload/wait semantics, and bound POCOs for typed consumption.
 
 ### Lifetime
 
@@ -252,55 +252,19 @@ when the current snapshot instance is retained because the materialized content 
 stamps, including repeated `null`, skip reread, reparse, or re-enumeration work. A changed stamp forces
 rematerialization, but the current snapshot may still be retained when the materialized content is unchanged.
 
-When all composed provider snapshots are PicoCfg's native snapshot type, the root flattens them into a
-single dictionary-backed snapshot for steady-state reads. If any provider supplies a custom
-`ICfgSnapshot`, the root preserves that custom lookup behavior and falls back to read-time provider
-scanning instead of flattening away the custom semantics. Fallback composition still honors normal
-precedence: later providers override earlier ones.
+Built-in composition preserves normal precedence: later sources override earlier ones. PicoCfg may
+optimize steady-state reads internally without changing the exact-key behavior exposed through `ICfg`
+and `ICfgRoot`.
 
 ## Custom Sources
 
-Custom integrations are built on `PicoCfg.Abs`.
+`PicoCfg.Abs` now stays focused on the minimal consumer-facing contracts. Lower-level source and provider
+composition hooks are implementation details rather than part of the primary application-facing API.
 
-- `ICfgSource.OpenAsync()` opens a source into a long-lived provider
-- the returned provider must already expose a readable `Snapshot`
-- `ICfgProvider.ReloadAsync()` reports whether that provider published a new snapshot instance; `false`
-  is authoritative unchanged for that provider version, and callers may retain the current snapshot reference
+## Advanced customization
 
-Minimal sketch:
-
-```csharp
-using PicoCfg.Abs;
-
-public sealed class CustomSource : ICfgSource
-{
-    public async ValueTask<ICfgProvider> OpenAsync(CancellationToken ct = default)
-    {
-        var provider = new CustomProvider();
-        await provider.ReloadAsync(ct);
-        return provider;
-    }
-}
-```
-
-## Custom Builder Composition
-
-`CfgBuilder` also exposes a small builder-centric composition surface for the built-in source pipeline.
-Use `WithStreamParser(...)` when you want to customize how built-in text and stream sources parse content, and use `WithSnapshotComposer(...)` when you want to customize how provider snapshots are composed into the published root snapshot.
-
-If you want to decorate the default behavior instead of replacing it outright, wrap the public default helpers:
-
-```csharp
-var defaultParser = CfgBuilder.CreateDefaultStreamParser();
-var defaultComposer = CfgBuilder.CreateDefaultSnapshotComposer();
-
-var builder = Cfg
-    .CreateBuilder()
-    .WithStreamParser((stream, ct) => defaultParser(stream, ct))
-    .WithSnapshotComposer(providerSnapshots => defaultComposer(providerSnapshots));
-```
-
-These hooks are intentionally narrow. Lower-level runtime composition types stay internal, and custom provider/source abstractions still belong in `PicoCfg.Abs`.
+The primary public API is intentionally small: `ICfg`, `ICfgRoot`, `CfgBind`, and the DI helpers built on
+top of them. Lower-level builder and composition hooks stay internal.
 
 ## Native AOT
 
