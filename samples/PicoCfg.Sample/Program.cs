@@ -18,8 +18,8 @@ await Test(
         builder.Add("TestKey=TestValue\nAnotherKey=AnotherValue");
 
         await using var root = await builder.BuildAsync();
-        var value1 = root.Snapshot.GetValue("TestKey");
-        var value2 = root.Snapshot.GetValue("AnotherKey");
+        var value1 = root.GetValue("TestKey");
+        var value2 = root.GetValue("AnotherKey");
 
         return value1 == "TestValue" && value2 == "AnotherValue";
     }
@@ -35,7 +35,7 @@ await Test(
         builder.Add("Key=SecondValue"); // This should override
 
         await using var root = await builder.BuildAsync();
-        var value = root.Snapshot.GetValue("Key");
+        var value = root.GetValue("Key");
 
         return value == "SecondValue";
     }
@@ -67,9 +67,9 @@ await Test(
         
         await using var root = await builder.BuildAsync();
 
-        var stringValue = root.Snapshot.GetValue("StringKey");
-        var dictValue = root.Snapshot.GetValue("DictKey");
-        var streamValue = root.Snapshot.GetValue("StreamKey");
+        var stringValue = root.GetValue("StringKey");
+        var dictValue = root.GetValue("DictKey");
+        var streamValue = root.GetValue("StreamKey");
 
         return stringValue == "StringValue"
             && dictValue == "DictValue"
@@ -86,8 +86,8 @@ await Test(
         builder.Add("ExistingKey=SomeValue");
 
         await using var root = await builder.BuildAsync();
-        var existingValue = root.Snapshot.GetValue("ExistingKey");
-        var missingValue = root.Snapshot.GetValue("NonExistentKey");
+        var existingValue = root.GetValue("ExistingKey");
+        var missingValue = root.GetValue("NonExistentKey");
 
         return existingValue == "SomeValue" && missingValue == null;
     }
@@ -102,8 +102,8 @@ await Test(
         builder.Add("Section:Subsection:Key=Value\nSection.Key.With.Dots=AnotherValue");
 
         await using var root = await builder.BuildAsync();
-        var value1 = root.Snapshot.GetValue("Section:Subsection:Key");
-        var value2 = root.Snapshot.GetValue("Section.Key.With.Dots");
+        var value1 = root.GetValue("Section:Subsection:Key");
+        var value2 = root.GetValue("Section.Key.With.Dots");
 
         return value1 == "Value" && value2 == "AnotherValue";
     }
@@ -118,9 +118,9 @@ await Test(
         builder.Add("\n\nKey1=Value1\n  \nKey2  =  Value2  \nKey3=\n\n");
 
         await using var root = await builder.BuildAsync();
-        var value1 = root.Snapshot.GetValue("Key1");
-        var value2 = root.Snapshot.GetValue("Key2");
-        var value3 = root.Snapshot.GetValue("Key3");
+        var value1 = root.GetValue("Key1");
+        var value2 = root.GetValue("Key2");
+        var value3 = root.GetValue("Key3");
 
         // Key2 should be trimmed, Key3 should be empty string
         return value1 == "Value1" && value2 == "Value2" && value3 == "";
@@ -142,7 +142,7 @@ await Test(
 
             await using var root = await builder.BuildAsync(cts.Token);
             cts.Token.ThrowIfCancellationRequested();
-            var value = root.Snapshot.GetValue("Key");
+            var value = root.GetValue("Key");
 
             // If we get here without cancellation, it's still OK for AOT validation
             return value == "Value";
@@ -155,9 +155,9 @@ await Test(
     }
 );
 
-// Test 8: Snapshot remains available without tree APIs
+// Test 8: Root remains directly readable without tree APIs
 await Test(
-    "Snapshot access",
+    "Root access",
     async () =>
     {
         var builder = Cfg.CreateBuilder();
@@ -166,8 +166,8 @@ await Test(
 
         await using var root = await builder.BuildAsync();
 
-        return root.Snapshot.GetValue("Key1") == "Value1"
-            && root.Snapshot.GetValue("Key2") == "Value2";
+        return root.GetValue("Key1") == "Value1"
+            && root.GetValue("Key2") == "Value2";
     }
 );
 
@@ -176,18 +176,22 @@ await Test(
     "Change notification",
     async () =>
     {
+        var currentData = new Dictionary<string, string> { ["InitialKey"] = "InitialValue" };
+        var version = 0;
         var builder = Cfg.CreateBuilder();
-        builder.Add("InitialKey=InitialValue");
+        builder.Add(() => currentData, () => version);
 
         await using var root = await builder.BuildAsync();
 
-        var changeSignal = root.GetChangeSignal();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        var waitTask = root.WaitForChangeAsync(cts.Token).AsTask();
 
-        if (changeSignal.HasChanged)
-            return false;
+        currentData = new Dictionary<string, string> { ["InitialKey"] = "UpdatedValue" };
+        version++;
 
         var changed = await root.ReloadAsync();
-        return changed == changeSignal.HasChanged;
+        await waitTask;
+        return changed && waitTask.IsCompletedSuccessfully;
     }
 );
 
