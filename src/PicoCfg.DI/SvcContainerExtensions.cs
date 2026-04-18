@@ -15,21 +15,8 @@ public static class SvcContainerExtensions
             .RegisterTransient<ICfg>(static scope => scope.GetService<ICfgRoot>());
     }
 
-    public static ISvcContainer RegisterPicoCfg(this ISvcContainer container, ICfgSnapshot snapshot)
-    {
-        ArgumentNullException.ThrowIfNull(container);
-        ArgumentNullException.ThrowIfNull(snapshot);
-
-        return container
-            .RegisterSingle<ICfgSnapshot>(snapshot)
-            .RegisterSingle<ICfg>(snapshot);
-    }
-
     public static ISvcContainer RegisterCfgRoot(this ISvcContainer container, ICfgRoot root)
         => container.RegisterPicoCfg(root);
-
-    public static ISvcContainer RegisterCfgSnapshot(this ISvcContainer container, ICfgSnapshot snapshot)
-        => container.RegisterPicoCfg(snapshot);
 
     public static ISvcContainer RegisterPicoCfgTransient<T>(this ISvcContainer container, string? section = null)
         where T : class
@@ -68,24 +55,9 @@ public static class SvcContainerExtensions
         if (cfg is not null)
             return CfgBind.Bind<T>(cfg, section);
 
-        var snapshot = TryGetSnapshot(scope);
-        if (snapshot is not null)
-            return CfgBind.Bind<T>(snapshot, section);
-
         throw new InvalidOperationException(
-            "No PicoCfg configuration source is registered. Call RegisterPicoCfg(...) or RegisterCfgRoot(...) before registering bound configuration services. RegisterCfgSnapshot(...) remains available for advanced fixed-snapshot scenarios."
+            "No PicoCfg configuration source is registered. Call RegisterPicoCfg(...) or RegisterCfgRoot(...) before registering bound configuration services."
         );
-    }
-
-    private static ICfgSnapshot? TryGetSnapshot(ISvcScope scope)
-    {
-        ArgumentNullException.ThrowIfNull(scope);
-
-        var snapshot = TryGetServices<ICfgSnapshot>(scope).LastOrDefault();
-        if (snapshot is not null)
-            return snapshot;
-
-        return null;
     }
 
     private static IEnumerable<T> TryGetServices<T>(ISvcScope scope)

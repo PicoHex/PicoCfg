@@ -4,24 +4,6 @@ using System.Diagnostics.CodeAnalysis;
 
 public static class CfgBind
 {
-    public static T Bind<T>(ICfgSnapshot snapshot, string? section = null)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
-        return Bind<T>((ICfg)snapshot, section);
-    }
-
-    public static bool TryBind<T>(ICfgSnapshot snapshot, [MaybeNullWhen(false)] out T value, string? section = null)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
-        return TryBind((ICfg)snapshot, out value, section);
-    }
-
-    public static void BindInto<T>(ICfgSnapshot snapshot, T instance, string? section = null)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
-        BindInto((ICfg)snapshot, instance, section);
-    }
-
     public static T Bind<T>(ICfgRoot root, string? section = null)
     {
         ArgumentNullException.ThrowIfNull(root);
@@ -44,7 +26,7 @@ public static class CfgBind
     {
         ArgumentNullException.ThrowIfNull(cfg);
 
-        var registration = PicoCfgBindRuntime.GetRequiredRegistration<T>(nameof(Bind));
+        var registration = CfgBindRuntime.GetRequiredRegistration<T>(nameof(Bind));
         if (registration.Bind is null)
             throw PicoCfgBindRegistrationException.CreateMissing(typeof(T), nameof(Bind));
 
@@ -55,7 +37,7 @@ public static class CfgBind
     {
         ArgumentNullException.ThrowIfNull(cfg);
 
-        var registration = PicoCfgBindRuntime.GetRequiredRegistration<T>(nameof(TryBind));
+        var registration = CfgBindRuntime.GetRequiredRegistration<T>(nameof(TryBind));
         if (registration.TryBind is null)
             throw PicoCfgBindRegistrationException.CreateMissing(typeof(T), nameof(TryBind));
 
@@ -67,7 +49,7 @@ public static class CfgBind
         ArgumentNullException.ThrowIfNull(cfg);
         ArgumentNullException.ThrowIfNull(instance);
 
-        var registration = PicoCfgBindRuntime.GetRequiredRegistration<T>(nameof(BindInto));
+        var registration = CfgBindRuntime.GetRequiredRegistration<T>(nameof(BindInto));
         registration.BindInto(cfg, section, instance);
     }
 }
