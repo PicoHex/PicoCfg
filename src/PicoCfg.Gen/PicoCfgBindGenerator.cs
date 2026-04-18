@@ -464,7 +464,8 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
         if (!method.IsGenericMethod || method.TypeArguments.Length != 1)
             return false;
 
-        if (method.ContainingType.Name == "PicoCfgBind" && method.ContainingType.ContainingNamespace.ToDisplayString() == "PicoCfg")
+        if ((method.ContainingType.Name == "PicoCfgBind" || method.ContainingType.Name == "CfgBind")
+            && method.ContainingType.ContainingNamespace.ToDisplayString() == "PicoCfg")
         {
             switch (method.Name)
             {
@@ -594,7 +595,7 @@ public sealed class PicoCfgBindGenerator : IIncrementalGenerator
         public static readonly DiagnosticDescriptor MissingPublicParameterlessConstructor = new(
             id: "PCFGGEN002",
             title: "Binding target must have a public parameterless constructor",
-            messageFormat: "PicoCfgBind.Bind<T> and PicoCfgBind.TryBind<T> require '{0}' to declare a public parameterless constructor",
+            messageFormat: "CfgBind.Bind<T> and CfgBind.TryBind<T> require '{0}' to declare a public parameterless constructor",
             category: "PicoCfg.Gen",
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true

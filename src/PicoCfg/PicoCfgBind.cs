@@ -1,64 +1,36 @@
 namespace PicoCfg;
 
+using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 
+[EditorBrowsable(EditorBrowsableState.Never)]
+[Obsolete("Use CfgBind instead.")]
 public static class PicoCfgBind
 {
     public static T Bind<T>(ICfgSnapshot snapshot, string? section = null)
-        => Bind<T>((ICfg)snapshot, section);
+        => CfgBind.Bind<T>(snapshot, section);
 
     public static T Bind<T>(ICfg cfg, string? section = null)
-    {
-        ArgumentNullException.ThrowIfNull(cfg);
-
-        var registration = PicoCfgBindRuntime.GetRequiredRegistration<T>(nameof(Bind));
-        if (registration.Bind is null)
-            throw PicoCfgBindRegistrationException.CreateMissing(typeof(T), nameof(Bind));
-
-        return registration.Bind(cfg, section);
-    }
+        => CfgBind.Bind<T>(cfg, section);
 
     public static bool TryBind<T>(ICfgSnapshot snapshot, [MaybeNullWhen(false)] out T value, string? section = null)
-        => TryBind((ICfg)snapshot, out value, section);
+        => CfgBind.TryBind(snapshot, out value, section);
 
     public static bool TryBind<T>(ICfg cfg, [MaybeNullWhen(false)] out T value, string? section = null)
-    {
-        ArgumentNullException.ThrowIfNull(cfg);
-
-        var registration = PicoCfgBindRuntime.GetRequiredRegistration<T>(nameof(TryBind));
-        if (registration.TryBind is null)
-            throw PicoCfgBindRegistrationException.CreateMissing(typeof(T), nameof(TryBind));
-
-        return registration.TryBind(cfg, section, out value);
-    }
+        => CfgBind.TryBind(cfg, out value, section);
 
     public static void BindInto<T>(ICfgSnapshot snapshot, T instance, string? section = null)
-        => BindInto((ICfg)snapshot, instance, section);
+        => CfgBind.BindInto(snapshot, instance, section);
 
     public static void BindInto<T>(ICfg cfg, T instance, string? section = null)
-    {
-        ArgumentNullException.ThrowIfNull(cfg);
-        ArgumentNullException.ThrowIfNull(instance);
-
-        var registration = PicoCfgBindRuntime.GetRequiredRegistration<T>(nameof(BindInto));
-        registration.BindInto(cfg, section, instance);
-    }
+        => CfgBind.BindInto(cfg, instance, section);
 
     public static T Bind<T>(ICfgRoot root, string? section = null)
-    {
-        ArgumentNullException.ThrowIfNull(root);
-        return Bind<T>((ICfg)root, section);
-    }
+        => CfgBind.Bind<T>(root, section);
 
     public static bool TryBind<T>(ICfgRoot root, [MaybeNullWhen(false)] out T value, string? section = null)
-    {
-        ArgumentNullException.ThrowIfNull(root);
-        return TryBind((ICfg)root, out value, section);
-    }
+        => CfgBind.TryBind(root, out value, section);
 
     public static void BindInto<T>(ICfgRoot root, T instance, string? section = null)
-    {
-        ArgumentNullException.ThrowIfNull(root);
-        BindInto((ICfg)root, instance, section);
-    }
+        => CfgBind.BindInto(root, instance, section);
 }
