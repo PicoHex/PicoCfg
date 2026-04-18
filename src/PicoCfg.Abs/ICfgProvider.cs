@@ -19,5 +19,4 @@ public interface ICfgProvider : IAsyncDisposable
 {
     ICfgSnapshot Snapshot { get; }
     ValueTask<bool> ReloadAsync(CancellationToken ct = default);
-    ICfgChangeSignal GetChangeSignal();
 }

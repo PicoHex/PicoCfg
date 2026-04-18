@@ -1,6 +1,6 @@
 namespace PicoCfg;
 
-internal sealed class CfgChangeSignal : ICfgChangeSignal
+internal sealed class CfgChangeSignal
 {
     private readonly Lock _syncRoot = new();
     private bool _hasChanged;

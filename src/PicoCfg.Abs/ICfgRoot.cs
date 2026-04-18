@@ -20,8 +20,8 @@ namespace PicoCfg.Abs;
 /// new snapshot versions, the root may first publish the observed composed snapshot for those settled
 /// provider versions and then rethrow the failure.
 /// </summary>
-public interface ICfgRoot : ICfgRuntime
+public interface ICfgRoot : ICfg, IAsyncDisposable
 {
-    ICfgSnapshot Snapshot { get; }
-    ICfgChangeSignal GetChangeSignal();
+    ValueTask<bool> ReloadAsync(CancellationToken ct = default);
+    ValueTask WaitForChangeAsync(CancellationToken ct = default);
 }
