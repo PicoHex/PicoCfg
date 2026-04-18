@@ -30,7 +30,7 @@ public class PicoCfgBindRuntimeTests
             )
             .BuildAsync();
 
-        var model = PicoCfgBind.Bind<FlatSettings>(root.Snapshot);
+        var model = PicoCfgBind.Bind<FlatSettings>(root);
 
         await Assert.That(model.Name).IsEqualTo("PicoCfg");
         await Assert.That(model.Enabled).IsTrue();
@@ -80,7 +80,7 @@ public class PicoCfgBindRuntimeTests
             )
             .BuildAsync();
 
-        var thrown = await Assert.That(() => PicoCfgBind.Bind<FlatSettings>(root.Snapshot)).Throws<FormatException>();
+        var thrown = await Assert.That(() => PicoCfgBind.Bind<FlatSettings>((ICfg)root)).Throws<FormatException>();
         await Assert.That(thrown).IsNotNull();
         await Assert.That(thrown.Message).Contains("Enabled");
     }
@@ -131,7 +131,7 @@ public class PicoCfgBindRuntimeTests
             OptionalCount = 11,
         };
 
-        PicoCfgBind.BindInto(root.Snapshot, instance);
+        PicoCfgBind.BindInto((ICfg)root, instance);
 
         await Assert.That(instance.Name).IsEqualTo("Updated");
         await Assert.That(instance.Count).IsEqualTo(8);
@@ -165,11 +165,11 @@ public class PicoCfgBindRuntimeTests
             .GetMethods(BindingFlags.Public | BindingFlags.Static)
             .Single(static method => method.Name == nameof(PicoCfgBind.Bind)
                 && method.IsGenericMethodDefinition
-                && method.GetParameters() is [{ ParameterType: { Name: nameof(ICfgSnapshot) } }, ..]);
+                && method.GetParameters() is [{ ParameterType: { Name: nameof(ICfg) } }, ..]);
 
         var closedMethod = method.MakeGenericMethod(typeof(UnregisteredSettings));
 
-        var thrown = await Assert.That(() => closedMethod.Invoke(null, [root.Snapshot, null])).Throws<TargetInvocationException>();
+        var thrown = await Assert.That(() => closedMethod.Invoke(null, [root, null])).Throws<TargetInvocationException>();
         await Assert.That(thrown).IsNotNull();
         await Assert.That(thrown.InnerException).IsNotNull();
         await Assert.That(thrown.InnerException).IsTypeOf<PicoCfgBindRegistrationException>();
@@ -182,9 +182,9 @@ public class PicoCfgBindRuntimeTests
         PicoCfgBindRuntime.Register<SkewedSettings>(
             contractVersion: PicoCfgBindRuntime.ContractVersion + 1,
             bind: static (_, _) => new SkewedSettings(),
-            tryBind: static (ICfgSnapshot snapshot, string? section, [MaybeNullWhen(false)] out SkewedSettings value) =>
+            tryBind: static (ICfg cfg, string? section, [MaybeNullWhen(false)] out SkewedSettings value) =>
             {
-                _ = snapshot;
+                _ = cfg;
                 _ = section;
                 value = new SkewedSettings();
                 return true;
@@ -194,7 +194,7 @@ public class PicoCfgBindRuntimeTests
 
         await using var root = await Cfg.CreateBuilder().Add(new Dictionary<string, string>()).BuildAsync();
 
-        var thrown = await Assert.That(() => PicoCfgBind.Bind<SkewedSettings>(root.Snapshot)).Throws<PicoCfgBindRegistrationException>();
+        var thrown = await Assert.That(() => PicoCfgBind.Bind<SkewedSettings>(root)).Throws<PicoCfgBindRegistrationException>();
         await Assert.That(thrown).IsNotNull();
         await Assert.That(thrown.Message).Contains("incompatible");
     }

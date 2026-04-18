@@ -9,21 +9,21 @@ public sealed class CfgBindTests
     }
 
     [Test]
-    public async Task Bind_BindsFromSnapshot()
+    public async Task Bind_BindsFromRootAsCfg()
     {
         await using var root = await Cfg
             .CreateBuilder()
             .Add(new Dictionary<string, string> { ["Name"] = "PicoCfg", ["Count"] = "42" })
             .BuildAsync();
 
-        var settings = CfgBind.Bind<PicoCfgBindRuntimeTests.FlatSettings>(root.Snapshot);
+        var settings = CfgBind.Bind<PicoCfgBindRuntimeTests.FlatSettings>((ICfg)root);
 
         await Assert.That(settings.Name).IsEqualTo("PicoCfg");
         await Assert.That(settings.Count).IsEqualTo(42);
     }
 
     [Test]
-    public async Task Bind_BindsFromRuntimeCurrentSnapshot()
+    public async Task Bind_BindsFromRootSnapshot()
     {
         await using var root = await Cfg
             .CreateBuilder()
@@ -37,14 +37,14 @@ public sealed class CfgBindTests
     }
 
     [Test]
-    public async Task Bind_BindsFromCfgWhenCfgIsSnapshot()
+    public async Task Bind_BindsFromCfgWhenCfgIsRoot()
     {
         await using var root = await Cfg
             .CreateBuilder()
             .Add(new Dictionary<string, string> { ["Name"] = "Cfg", ["Count"] = "3" })
             .BuildAsync();
 
-        ICfg cfg = root.Snapshot;
+        ICfg cfg = root;
 
         var settings = CfgBind.Bind<PicoCfgBindRuntimeTests.FlatSettings>(cfg);
 
@@ -53,14 +53,14 @@ public sealed class CfgBindTests
     }
 
     [Test]
-    public async Task Bind_FromNonSnapshotCfg_FailsFast()
+    public async Task Bind_FromNonSnapshotCfg_SucceedsWhenKeysExist()
     {
-        ICfg cfg = new InlineCfg(new Dictionary<string, string> { ["Name"] = "Nope" });
+        ICfg cfg = new InlineCfg(new Dictionary<string, string> { ["Name"] = "Loose", ["Count"] = "5" });
 
-        var thrown = await Assert.That(() => CfgBind.Bind<PicoCfgBindRuntimeTests.FlatSettings>(cfg)).Throws<InvalidOperationException>();
+        var settings = CfgBind.Bind<PicoCfgBindRuntimeTests.FlatSettings>(cfg);
 
-        await Assert.That(thrown).IsNotNull();
-        await Assert.That(thrown.Message).Contains(nameof(ICfgSnapshot));
+        await Assert.That(settings.Name).IsEqualTo("Loose");
+        await Assert.That(settings.Count).IsEqualTo(5);
     }
 
     private sealed class InlineCfg(IReadOnlyDictionary<string, string> values) : ICfg
