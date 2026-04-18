@@ -3,7 +3,7 @@ namespace PicoCfg.DI.Tests;
 public sealed class SvcContainerExtensionsTests
 {
     [Test]
-    public async Task RegisterPicoCfg_RegistersRuntimeCfgAndLatestSnapshot()
+    public async Task RegisterPicoCfg_RegistersRootAndCfgWithoutSnapshotService()
     {
         var state = CreateSettingsData("Before", 1);
         var version = 0;
@@ -14,23 +14,19 @@ public sealed class SvcContainerExtensionsTests
         container.RegisterPicoCfg(root);
 
         using var scope = container.CreateScope();
-        var runtime = scope.GetService<ICfgRuntime>();
+        var resolvedRoot = scope.GetService<ICfgRoot>();
         var cfg = scope.GetService<ICfg>();
-        var snapshotBefore = scope.GetService<ICfgSnapshot>();
 
-        await Assert.That(runtime).IsSameReferenceAs((ICfgRuntime)root);
+        await Assert.That(resolvedRoot).IsSameReferenceAs(root);
         await Assert.That(cfg.GetValue("App:Name")).IsEqualTo("Before");
-        await Assert.That(snapshotBefore.GetValue("App:Name")).IsEqualTo("Before");
+        await Assert.That(() => scope.GetService<ICfgSnapshot>()).Throws<PicoDiException>();
 
         state = CreateSettingsData("After", 2);
         version++;
         await root.ReloadAsync();
 
-        var snapshotAfter = scope.GetService<ICfgSnapshot>();
         var cfgAfter = scope.GetService<ICfg>();
 
-        await Assert.That(snapshotAfter).IsNotSameReferenceAs(snapshotBefore);
-        await Assert.That(snapshotAfter.GetValue("App:Name")).IsEqualTo("After");
         await Assert.That(cfgAfter.GetValue("App:Name")).IsEqualTo("After");
     }
 
@@ -57,7 +53,7 @@ public sealed class SvcContainerExtensionsTests
     }
 
     [Test]
-    public async Task RegisterCfgRoot_RegistersRootAndExposesLatestSnapshot()
+    public async Task RegisterCfgRoot_RegistersRootWithoutDefaultSnapshotService()
     {
         var state = CreateSettingsData("Before", 1);
         var version = 0;
@@ -69,19 +65,19 @@ public sealed class SvcContainerExtensionsTests
 
         using var scope = container.CreateScope();
         var resolvedRoot = scope.GetService<ICfgRoot>();
-        var snapshotBefore = scope.GetService<ICfgSnapshot>();
+        var cfgBefore = scope.GetService<ICfg>();
 
         await Assert.That(resolvedRoot).IsSameReferenceAs(root);
-        await Assert.That(snapshotBefore.GetValue("App:Name")).IsEqualTo("Before");
+        await Assert.That(cfgBefore.GetValue("App:Name")).IsEqualTo("Before");
+        await Assert.That(() => scope.GetService<ICfgSnapshot>()).Throws<PicoDiException>();
 
         state = CreateSettingsData("After", 2);
         version++;
         await root.ReloadAsync();
 
-        var snapshotAfter = scope.GetService<ICfgSnapshot>();
+        var cfgAfter = scope.GetService<ICfg>();
 
-        await Assert.That(snapshotAfter).IsNotSameReferenceAs(snapshotBefore);
-        await Assert.That(snapshotAfter.GetValue("App:Name")).IsEqualTo("After");
+        await Assert.That(cfgAfter.GetValue("App:Name")).IsEqualTo("After");
     }
 
     [Test]

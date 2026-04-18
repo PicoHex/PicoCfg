@@ -5,15 +5,14 @@ using PicoDI.Abs;
 
 public static class SvcContainerExtensions
 {
-    public static ISvcContainer RegisterPicoCfg(this ISvcContainer container, ICfgRuntime runtime)
+    public static ISvcContainer RegisterPicoCfg(this ISvcContainer container, ICfgRoot root)
     {
         ArgumentNullException.ThrowIfNull(container);
-        ArgumentNullException.ThrowIfNull(runtime);
+        ArgumentNullException.ThrowIfNull(root);
 
         return container
-            .RegisterSingle<ICfgRuntime>(runtime)
-            .RegisterTransient<ICfgSnapshot>(static scope => scope.GetService<ICfgRuntime>().Current)
-            .RegisterTransient<ICfg>(static scope => scope.GetService<ICfgRuntime>().Current);
+            .RegisterSingle<ICfgRoot>(root)
+            .RegisterTransient<ICfg>(static scope => scope.GetService<ICfgRoot>());
     }
 
     public static ISvcContainer RegisterPicoCfg(this ISvcContainer container, ICfgSnapshot snapshot)
@@ -27,9 +26,7 @@ public static class SvcContainerExtensions
     }
 
     public static ISvcContainer RegisterCfgRoot(this ISvcContainer container, ICfgRoot root)
-        => container
-            .RegisterPicoCfg((ICfgRuntime)root)
-            .RegisterSingle<ICfgRoot>(root);
+        => container.RegisterPicoCfg(root);
 
     public static ISvcContainer RegisterCfgSnapshot(this ISvcContainer container, ICfgSnapshot snapshot)
         => container.RegisterPicoCfg(snapshot);
@@ -63,12 +60,20 @@ public static class SvcContainerExtensions
     {
         ArgumentNullException.ThrowIfNull(scope);
 
+        var root = TryGetServices<ICfgRoot>(scope).LastOrDefault();
+        if (root is not null)
+            return CfgBind.Bind<T>(root, section);
+
+        var cfg = TryGetServices<ICfg>(scope).LastOrDefault();
+        if (cfg is not null)
+            return CfgBind.Bind<T>(cfg, section);
+
         var snapshot = TryGetSnapshot(scope);
         if (snapshot is not null)
             return CfgBind.Bind<T>(snapshot, section);
 
         throw new InvalidOperationException(
-            "No PicoCfg configuration source is registered. Call RegisterPicoCfg(...), RegisterCfgRoot(...), or RegisterCfgSnapshot(...) before registering bound configuration services."
+            "No PicoCfg configuration source is registered. Call RegisterPicoCfg(...) or RegisterCfgRoot(...) before registering bound configuration services. RegisterCfgSnapshot(...) remains available for advanced fixed-snapshot scenarios."
         );
     }
 
@@ -80,16 +85,7 @@ public static class SvcContainerExtensions
         if (snapshot is not null)
             return snapshot;
 
-        var runtime = TryGetServices<ICfgRuntime>(scope).LastOrDefault();
-        if (runtime is not null)
-            return runtime.Current;
-
-        var cfg = TryGetServices<ICfg>(scope).LastOrDefault();
-        if (cfg is ICfgSnapshot cfgSnapshot)
-            return cfgSnapshot;
-
-        var root = TryGetServices<ICfgRoot>(scope).LastOrDefault();
-        return root?.Snapshot;
+        return null;
     }
 
     private static IEnumerable<T> TryGetServices<T>(ISvcScope scope)
