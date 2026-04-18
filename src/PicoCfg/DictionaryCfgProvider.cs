@@ -30,8 +30,6 @@ internal sealed class DictionaryCfgProvider : ICfgProvider
         return ValueTask.FromResult(_state.PublishIfChanged(newData, candidateVersionStamp));
     }
 
-    public ICfgChangeSignal GetChangeSignal() => _state.GetChangeSignal();
-
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     private Dictionary<string, string> CreateSnapshotData(CancellationToken ct)

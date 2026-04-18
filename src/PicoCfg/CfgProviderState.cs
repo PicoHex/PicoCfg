@@ -35,7 +35,7 @@ internal sealed class CfgProviderState
         }
     }
 
-    public ICfgChangeSignal GetChangeSignal()
+    internal CfgChangeSignal GetChangeSignal()
     {
         lock (_syncRoot)
             return _changeSignal;

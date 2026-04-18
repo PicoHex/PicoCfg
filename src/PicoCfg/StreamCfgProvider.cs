@@ -34,8 +34,6 @@ internal sealed class StreamCfgProvider : ICfgProvider
         return _state.PublishIfChanged(newData, candidateVersionStamp);
     }
 
-    public ICfgChangeSignal GetChangeSignal() => _state.GetChangeSignal();
-
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     private async Task<Dictionary<string, string>> CreateSnapshotDataAsync(CancellationToken ct)
