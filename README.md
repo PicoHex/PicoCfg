@@ -35,7 +35,7 @@ Use `PicoCfg.Gen` when you want AOT-safe source-generated binding from PicoCfg s
 dotnet add package PicoCfg.Gen
 ```
 
-Use `PicoCfg.DI` when you want PicoDI registration helpers for `ICfgRoot`, `ICfgSnapshot`, and generated binding-backed configuration services. In project-reference mode, keep a direct `PicoCfg.Gen` reference in the consuming app so the binder generator runs for your `RegisterCfg*<T>` calls:
+Use `PicoCfg.DI` when you want PicoDI registration helpers for `ICfgRoot`, `ICfg`, and generated binding-backed configuration services. In project-reference mode, keep a direct `PicoCfg.Gen` reference in the consuming app so the binder generator runs for your `RegisterCfg*<T>` calls:
 
 ```bash
 dotnet add package PicoCfg.DI
@@ -60,8 +60,8 @@ await using var root = await Cfg
     .Add(() => new MemoryStream(Encoding.UTF8.GetBytes("AppName=PicoCfg")))
     .BuildAsync();
 
-Console.WriteLine(root.Snapshot.GetValue("ConnectionString"));
-Console.WriteLine(root.Snapshot.GetValue("Logging:Level"));
+Console.WriteLine(root.GetValue("ConnectionString"));
+Console.WriteLine(root.GetValue("Logging:Level"));
 ```
 
 Later sources override earlier ones.
@@ -131,7 +131,7 @@ The repository also includes `samples/PicoCfg.Gen.Sample` as a small end-to-end 
 ## PicoCfg.DI with PicoDI
 
 `PicoCfg.DI` adds PicoDI-friendly registration helpers on top of `PicoCfg` and `PicoCfg.Gen`.
-Use `RegisterCfgRoot(...)` when you already own an `ICfgRoot`, `RegisterCfgSnapshot(...)` when you want a fixed snapshot, and `RegisterCfgTransient<T>()` / `RegisterCfgScoped<T>()` / `RegisterCfgSingleton<T>()` when you want generated bound POCOs resolved through PicoDI.
+Use `RegisterCfgRoot(...)` when you already own an `ICfgRoot`, and `RegisterCfgTransient<T>()` / `RegisterCfgScoped<T>()` / `RegisterCfgSingleton<T>()` when you want generated bound POCOs resolved through PicoDI. `RegisterCfgSnapshot(...)` remains available for advanced fixed-snapshot scenarios, but it is no longer the default DI path.
 
 ```csharp
 using PicoCfg;
@@ -156,8 +156,10 @@ container
     .RegisterCfgSingleton<AppSettings>("App");
 
 using var scope = container.CreateScope();
+var cfg = scope.GetService<ICfg>();
 var settings = scope.GetService<AppSettings>();
 
+Console.WriteLine(cfg.GetValue("App:Name"));
 Console.WriteLine(settings.Name);
 Console.WriteLine(settings.Count);
 
@@ -177,12 +179,13 @@ The repository also includes `samples/PicoCfg.DI.Sample` as a small end-to-end P
 `GetValue()` performs exact full-string lookup over the current snapshot and returns `null` when the key is absent.
 Characters such as `:` and `.` are part of the key name; PicoCfg does not interpret them as hierarchical traversal.
 
-### Stable snapshots
+### Published configuration views [advanced]
 
-`ICfgRoot.Snapshot` exposes the currently published read-only snapshot.
-If reload does not publish a new snapshot, the same snapshot instance is retained.
+`ICfgRoot` always reads from the currently published composed configuration view.
+If reload does not publish a new view, reads continue to observe the same published state.
 Root publication follows the composed provider snapshot sequence, not only the final merged visible values.
-Already obtained snapshots remain usable after root disposal.
+
+Most application code should stay on `ICfg` for exact lookups, `ICfgRoot` for ownership/reload/wait semantics, and bound POCOs for typed consumption. `ICfgSnapshot` remains an advanced abstraction for provider composition and specialized binding scenarios.
 
 ### Lifetime
 
@@ -236,14 +239,12 @@ For example, `Key = a=b=c` produces key `Key` and value `a=b=c`.
 
 - `ReloadAsync()` returns `true` only when a new snapshot instance is published
 - `ReloadAsync()` returns `false` when the current snapshot instance is retained
-- `GetChangeSignal()` returns the one-shot signal for the current published version
 - each `ReloadAsync()` call publishes at most one new composed snapshot
-- after a published change, fetch a new signal for later waits because signals are tied to a single published version
+- `WaitForChangeAsync()` is the public change-notification primitive for root consumers
 
 If a reload throws or is canceled after some providers have already published new snapshot versions,
 the root may first publish the observed composed snapshot for those settled provider versions after reload tasks settle, and then
-rethrow the failure. After a failed reload, re-sample `Snapshot` and fetch a new change signal if you
-need to observe the latest published state.
+rethrow the failure. After a failed reload, re-read through `ICfgRoot` or `ICfg` if you need to observe the latest published state.
 
 When a built-in source uses `versionStampFactory`, the first completed materialization establishes an
 accepted authoritative stamp baseline. Any later completed rematerialization updates that baseline even
@@ -265,7 +266,6 @@ Custom integrations are built on `PicoCfg.Abs`.
 - the returned provider must already expose a readable `Snapshot`
 - `ICfgProvider.ReloadAsync()` reports whether that provider published a new snapshot instance; `false`
   is authoritative unchanged for that provider version, and callers may retain the current snapshot reference
-- `ICfgProvider.GetChangeSignal()` returns the one-shot signal for the current published version
 
 Minimal sketch:
 
