@@ -29,7 +29,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
             """
         );
 
-        await AssertDiagnosticAsync(diagnostics, "PCFGGEN003");
+        await AssertDiagnosticAsync(diagnostics, "PCFGGEN003", "ComplexSettings.Child");
     }
 
     [Test]
@@ -53,7 +53,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
             """
         );
 
-        await AssertDiagnosticAsync(diagnostics, "PCFGGEN004");
+        await AssertDiagnosticAsync(diagnostics, "PCFGGEN004", "CollectionSettings.Values");
     }
 
     [Test]
@@ -77,7 +77,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
             """
         );
 
-        await AssertDiagnosticAsync(diagnostics, "PCFGGEN002");
+        await AssertDiagnosticAsync(diagnostics, "PCFGGEN002", "NoCtorSettings");
     }
 
     [Test]
@@ -100,7 +100,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
             """
         );
 
-        await AssertDiagnosticAsync(diagnostics, "PCFGGEN001");
+        await AssertDiagnosticAsync(diagnostics, "PCFGGEN001", "GenericSettings<T>");
     }
 
     [Test]
@@ -124,7 +124,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
             allowUnsafe: true
         );
 
-        await AssertDiagnosticAsync(diagnostics, "PCFGGEN005");
+        await AssertDiagnosticAsync(diagnostics, "PCFGGEN005", "UnsupportedPropertyTypeSettings.Callback");
     }
 
     [Test]
@@ -147,7 +147,7 @@ public class PicoCfgBindGeneratorDiagnosticsTests
             """
         );
 
-        await AssertDiagnosticAsync(diagnostics, "PCFGGEN006");
+        await AssertDiagnosticAsync(diagnostics, "PCFGGEN006", "UnsupportedPropertyShapeSettings.Value");
     }
 
     [Test]
@@ -170,15 +170,23 @@ public class PicoCfgBindGeneratorDiagnosticsTests
             """
         );
 
-        await AssertDiagnosticAsync(diagnostics, "PCFGGEN007");
+        await AssertDiagnosticAsync(diagnostics, "PCFGGEN007", "StructSettings");
     }
 
-    private static async Task AssertDiagnosticAsync(ImmutableArray<Diagnostic> diagnostics, string id)
+    private static async Task AssertDiagnosticAsync(ImmutableArray<Diagnostic> diagnostics, string id, string expectedMessageFragment)
     {
-        var match = diagnostics.FirstOrDefault(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error && diagnostic.Id == id);
-        await Assert.That(diagnostics.Any(diagnostic => diagnostic.Id == id)).IsTrue();
+        var matches = diagnostics
+            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error && diagnostic.Id == id)
+            .ToImmutableArray();
+
+        await Assert.That(matches.Length).IsEqualTo(1);
+
+        var match = matches[0];
         await Assert.That(match).IsNotNull();
         await Assert.That(match.Id).IsEqualTo(id);
+        await Assert.That(match.Location.Kind).IsEqualTo(LocationKind.SourceFile);
+        await Assert.That(match.Location.SourceTree).IsNotNull();
+        await Assert.That(match.GetMessage().Contains(expectedMessageFragment, StringComparison.Ordinal)).IsTrue();
     }
 
     private static async Task<ImmutableArray<Diagnostic>> CompileAndGetDiagnosticsAsync(string source, bool allowUnsafe = false)
