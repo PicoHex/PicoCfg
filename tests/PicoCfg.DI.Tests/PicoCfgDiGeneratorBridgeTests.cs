@@ -1,3 +1,5 @@
+using PicoCfg.Gen;
+
 namespace PicoCfg.DI.Tests;
 
 using System.Collections.Immutable;
@@ -29,7 +31,13 @@ public sealed class AppSettings
 
         var diagnostics = GetDiagnostics(source);
 
-        await Assert.That(diagnostics.Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)).IsEmpty();
+        await Assert
+            .That(
+                diagnostics.Where(
+                    static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+                )
+            )
+            .IsEmpty();
     }
 
     [Test]
@@ -53,7 +61,13 @@ public sealed class AppSettings
 
         var diagnostics = GetDiagnostics(source);
 
-        await Assert.That(diagnostics.Where(static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)).IsEmpty();
+        await Assert
+            .That(
+                diagnostics.Where(
+                    static diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+                )
+            )
+            .IsEmpty();
     }
 
     [Test]
@@ -77,12 +91,17 @@ public sealed class AppSettings<T>
 
         var diagnostics = GetDiagnostics(source);
 
-        await Assert.That(diagnostics.Any(static diagnostic => diagnostic.Id == "PCFGGEN001")).IsTrue();
+        await Assert
+            .That(diagnostics.Any(static diagnostic => diagnostic.Id == "PCFGGEN001"))
+            .IsTrue();
     }
 
     private static ImmutableArray<Diagnostic> GetDiagnostics(string source)
     {
-        var syntaxTree = CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(LanguageVersion.Preview));
+        var syntaxTree = CSharpSyntaxTree.ParseText(
+            source,
+            new CSharpParseOptions(LanguageVersion.Preview)
+        );
         var compilation = CSharpCompilation.Create(
             assemblyName: "PicoCfg.DI.Generator.Tests",
             syntaxTrees: [syntaxTree],
@@ -90,21 +109,29 @@ public sealed class AppSettings<T>
             options: new CSharpCompilationOptions(OutputKind.ConsoleApplication)
         );
 
-        var generators = new ISourceGenerator[]
-        {
-            new PicoCfg.Gen.Generator.PicoCfgBindGenerator().AsSourceGenerator(),
-        };
+        var generators = new ISourceGenerator[] { new PicoCfgBindGenerator().AsSourceGenerator(), };
 
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(generators, parseOptions: new CSharpParseOptions(LanguageVersion.Preview));
-        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out var diagnostics);
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            generators,
+            parseOptions: new CSharpParseOptions(LanguageVersion.Preview)
+        );
+        driver = driver.RunGeneratorsAndUpdateCompilation(
+            compilation,
+            out var outputCompilation,
+            out var diagnostics
+        );
 
-        return outputCompilation.GetDiagnostics().AddRange(diagnostics).AddRange(driver.GetRunResult().Diagnostics);
+        return outputCompilation
+            .GetDiagnostics()
+            .AddRange(diagnostics)
+            .AddRange(driver.GetRunResult().Diagnostics);
     }
 
     private static MetadataReference[] GetMetadataReferences()
     {
-        var trustedPlatformAssemblies = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))!
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+        var trustedPlatformAssemblies = (
+            (string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")
+        )!.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
 
         var explicitAssemblies = new[]
         {

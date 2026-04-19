@@ -1,7 +1,5 @@
 namespace PicoCfg;
 
-using System.Diagnostics.CodeAnalysis;
-
 public static class CfgBind
 {
     public static T Bind<T>(ICfgRoot root, string? section = null)
@@ -10,7 +8,11 @@ public static class CfgBind
         return Bind<T>((ICfg)root, section);
     }
 
-    public static bool TryBind<T>(ICfgRoot root, [MaybeNullWhen(false)] out T value, string? section = null)
+    public static bool TryBind<T>(
+        ICfgRoot root,
+        [MaybeNullWhen(false)] out T value,
+        string? section = null
+    )
     {
         ArgumentNullException.ThrowIfNull(root);
         return TryBind((ICfg)root, out value, section);
@@ -33,7 +35,11 @@ public static class CfgBind
         return registration.Bind(cfg, section);
     }
 
-    public static bool TryBind<T>(ICfg cfg, [MaybeNullWhen(false)] out T value, string? section = null)
+    public static bool TryBind<T>(
+        ICfg cfg,
+        [MaybeNullWhen(false)] out T value,
+        string? section = null
+    )
     {
         ArgumentNullException.ThrowIfNull(cfg);
 

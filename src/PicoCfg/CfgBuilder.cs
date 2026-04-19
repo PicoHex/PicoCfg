@@ -10,31 +10,26 @@ public sealed class CfgBuilder
         Stream,
         CancellationToken,
         Task<Dictionary<string, string>>
-    > s_defaultStreamParser = ParseStreamAsync;
+    > SDefaultStreamParser = ParseStreamAsync;
 
-    private static readonly Func<CfgChangeSignal> s_defaultChangeSignalFactory =
-        static () => new CfgChangeSignal();
+    private static readonly Func<CfgChangeSignal> SDefaultChangeSignalFactory = static () =>
+        new CfgChangeSignal();
 
     private static readonly Func<
         IReadOnlyDictionary<string, string>,
         ulong,
         CfgSnapshot
-    > s_defaultSnapshotFactory = static (values, fingerprint) => new CfgSnapshot(values, fingerprint);
+    > SDefaultSnapshotFactory = static (values, fingerprint) =>
+        new CfgSnapshot(values, fingerprint);
 
     private readonly List<ICfgSource> _sources = [];
-    private Func<
-        Stream,
-        CancellationToken,
-        Task<Dictionary<string, string>>
-    > _streamParser = s_defaultStreamParser;
+    private Func<Stream, CancellationToken, Task<Dictionary<string, string>>> _streamParser =
+        SDefaultStreamParser;
 
-    private Func<CfgChangeSignal> _changeSignalFactory = s_defaultChangeSignalFactory;
+    private Func<CfgChangeSignal> _changeSignalFactory = SDefaultChangeSignalFactory;
 
-    private Func<
-        IReadOnlyDictionary<string, string>,
-        ulong,
-        CfgSnapshot
-    > _snapshotFactory = s_defaultSnapshotFactory;
+    private Func<IReadOnlyDictionary<string, string>, ulong, CfgSnapshot> _snapshotFactory =
+        SDefaultSnapshotFactory;
 
     private Func<
         IReadOnlyList<ICfgSnapshot>,
@@ -52,19 +47,27 @@ public sealed class CfgBuilder
     /// Returns the built-in line-based <c>key=value</c> parser used by PicoCfg's text and stream sources.
     /// Use this when you want to decorate the default parsing behavior instead of replacing it outright.
     /// </summary>
-    internal static Func<Stream, CancellationToken, Task<Dictionary<string, string>>> CreateDefaultStreamParser()
+    internal static Func<
+        Stream,
+        CancellationToken,
+        Task<Dictionary<string, string>>
+    > CreateDefaultStreamParser()
     {
-        return s_defaultStreamParser;
+        return SDefaultStreamParser;
     }
 
     internal static Func<CfgChangeSignal> CreateDefaultChangeSignalFactory()
     {
-        return s_defaultChangeSignalFactory;
+        return SDefaultChangeSignalFactory;
     }
 
-    internal static Func<IReadOnlyDictionary<string, string>, ulong, CfgSnapshot> CreateDefaultSnapshotFactory()
+    internal static Func<
+        IReadOnlyDictionary<string, string>,
+        ulong,
+        CfgSnapshot
+    > CreateDefaultSnapshotFactory()
     {
-        return s_defaultSnapshotFactory;
+        return SDefaultSnapshotFactory;
     }
 
     /// <summary>
@@ -115,17 +118,21 @@ public sealed class CfgBuilder
         return new CfgRoot(providers, CreateSnapshotComposer(), _changeSignalFactory);
     }
 
-    internal ICfgSource CreateStreamSource(Func<Stream> streamFactory, Func<object?>? versionStampFactory = null)
+    internal ICfgSource CreateStreamSource(
+        Func<Stream> streamFactory,
+        Func<object?>? versionStampFactory = null
+    )
     {
         ArgumentNullException.ThrowIfNull(streamFactory);
 
-        return new StreamCfgSource(() =>
-            new StreamCfgProvider(
-                streamFactory,
-                versionStampFactory,
-                CreateStreamParser(),
-                CreateProviderState()
-            )
+        return new StreamCfgSource(
+            () =>
+                new StreamCfgProvider(
+                    streamFactory,
+                    versionStampFactory,
+                    CreateStreamParser(),
+                    CreateProviderState()
+                )
         );
     }
 
@@ -145,8 +152,8 @@ public sealed class CfgBuilder
     {
         ArgumentNullException.ThrowIfNull(dataFactory);
 
-        return new DictionaryCfgSource(() =>
-            new DictionaryCfgProvider(dataFactory, versionStampFactory, CreateProviderState())
+        return new DictionaryCfgSource(
+            () => new DictionaryCfgProvider(dataFactory, versionStampFactory, CreateProviderState())
         );
     }
 
@@ -252,7 +259,7 @@ public sealed class CfgBuilder
     /// </summary>
     internal static Func<IReadOnlyList<ICfgSnapshot>, ICfgSnapshot> CreateDefaultSnapshotComposer()
     {
-        return CreateDefaultSnapshotComposer(s_defaultSnapshotFactory);
+        return CreateDefaultSnapshotComposer(SDefaultSnapshotFactory);
     }
 
     internal static Func<IReadOnlyList<ICfgSnapshot>, ICfgSnapshot> CreateDefaultSnapshotComposer(
@@ -260,7 +267,8 @@ public sealed class CfgBuilder
     )
     {
         ArgumentNullException.ThrowIfNull(snapshotFactory);
-        return providerSnapshots => CfgSnapshotComposer.CreateSnapshot(providerSnapshots, snapshotFactory);
+        return providerSnapshots =>
+            CfgSnapshotComposer.CreateSnapshot(providerSnapshots, snapshotFactory);
     }
 
     private static async ValueTask DisposeProvidersAsync(IReadOnlyList<ICfgProvider> providers)

@@ -1,8 +1,4 @@
-namespace PicoCfg.Gen.Generator;
-
-using System;
-using System.Collections.Immutable;
-using Microsoft.CodeAnalysis;
+namespace PicoCfg.Gen;
 
 // Holds the internal models shared across discovery, analysis, and rendering.
 public sealed partial class PicoCfgBindGenerator
@@ -11,55 +7,47 @@ public sealed partial class PicoCfgBindGenerator
     {
         public ITypeSymbol TargetType { get; } = targetType;
         public BindOperation Operations { get; set; }
-        public ImmutableArray<Location>.Builder Locations { get; } = ImmutableArray.CreateBuilder<Location>();
+        public ImmutableArray<Location>.Builder Locations { get; } =
+            ImmutableArray.CreateBuilder<Location>();
     }
 
-    private sealed class BindCall
+    private sealed class BindCall(
+        ITypeSymbol targetType,
+        BindOperation operation,
+        Location location
+    )
     {
-        public BindCall(ITypeSymbol targetType, BindOperation operation, Location location)
-        {
-            TargetType = targetType;
-            Operation = operation;
-            Location = location;
-        }
-
-        public ITypeSymbol TargetType { get; }
-        public BindOperation Operation { get; }
-        public Location Location { get; }
+        public ITypeSymbol TargetType { get; } = targetType;
+        public BindOperation Operation { get; } = operation;
+        public Location Location { get; } = location;
     }
 
-    private sealed class TargetModel
+    private sealed class TargetModel(
+        INamedTypeSymbol targetType,
+        BindOperation operations,
+        ImmutableArray<PropertyModel> properties,
+        bool hasPublicParameterlessConstructor
+    )
     {
-        public TargetModel(INamedTypeSymbol targetType, BindOperation operations, ImmutableArray<PropertyModel> properties, bool hasPublicParameterlessConstructor)
-        {
-            TargetType = targetType;
-            Operations = operations;
-            Properties = properties;
-            HasPublicParameterlessConstructor = hasPublicParameterlessConstructor;
-        }
-
-        public INamedTypeSymbol TargetType { get; }
-        public BindOperation Operations { get; }
-        public ImmutableArray<PropertyModel> Properties { get; }
-        public bool HasPublicParameterlessConstructor { get; }
+        public INamedTypeSymbol TargetType { get; } = targetType;
+        public BindOperation Operations { get; } = operations;
+        public ImmutableArray<PropertyModel> Properties { get; } = properties;
+        public bool HasPublicParameterlessConstructor { get; } = hasPublicParameterlessConstructor;
     }
 
-    private sealed class PropertyModel
+    private sealed class PropertyModel(
+        string name,
+        ITypeSymbol type,
+        ScalarKind scalarKind,
+        ITypeSymbol underlyingType,
+        bool isNullable
+    )
     {
-        public PropertyModel(string name, ITypeSymbol type, ScalarKind scalarKind, ITypeSymbol underlyingType, bool isNullable)
-        {
-            Name = name;
-            Type = type;
-            ScalarKind = scalarKind;
-            UnderlyingType = underlyingType;
-            IsNullable = isNullable;
-        }
-
-        public string Name { get; }
-        public ITypeSymbol Type { get; }
-        public ScalarKind ScalarKind { get; }
-        public ITypeSymbol UnderlyingType { get; }
-        public bool IsNullable { get; }
+        public string Name { get; } = name;
+        public ITypeSymbol Type { get; } = type;
+        public ScalarKind ScalarKind { get; } = scalarKind;
+        public ITypeSymbol UnderlyingType { get; } = underlyingType;
+        public bool IsNullable { get; } = isNullable;
     }
 
     [Flags]

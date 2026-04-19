@@ -61,10 +61,13 @@ internal sealed class CfgProviderState
         return true;
     }
 
-    public bool PublishIfChanged(IReadOnlyDictionary<string, string> values, object? candidateVersionStamp)
+    public bool PublishIfChanged(
+        IReadOnlyDictionary<string, string> values,
+        object? candidateVersionStamp
+    )
     {
         var fingerprint = ConfigDataComparer.ComputeFingerprint(values);
-        CfgChangeSignal? changedSignal = null;
+        CfgChangeSignal? changedSignal;
         lock (_syncRoot)
         {
             // A completed materialization attempt advances the authoritative baseline even when the visible

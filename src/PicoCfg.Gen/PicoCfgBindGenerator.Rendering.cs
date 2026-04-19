@@ -1,10 +1,4 @@
-namespace PicoCfg.Gen.Generator;
-
-using System;
-using System.Collections.Generic;
-using System.Text;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
+namespace PicoCfg.Gen;
 
 // Renders generated registration and binding code from validated models.
 public sealed partial class PicoCfgBindGenerator
@@ -26,18 +20,35 @@ public sealed partial class PicoCfgBindGenerator
         for (var i = 0; i < targets.Count; i++)
         {
             var target = targets[i];
-            var typeName = target.TargetType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            var bindDelegateType = "global::System.Func<global::PicoCfg.Abs.ICfg, string?, " + typeName + ">";
-            var tryBindDelegateType = "global::PicoCfg.PicoCfgGeneratedTryBindDelegate<" + typeName + ">";
-            var bindIntoDelegateType = "global::PicoCfg.PicoCfgGeneratedBindIntoDelegate<" + typeName + ">";
-            var hasCtor = target.HasPublicParameterlessConstructor ? "(" + bindDelegateType + ")Bind_" + i : "null";
-            var hasTryBind = target.HasPublicParameterlessConstructor ? "(" + tryBindDelegateType + ")TryBind_" + i : "null";
+            var typeName = target
+                .TargetType
+                .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            var bindDelegateType =
+                "global::System.Func<global::PicoCfg.Abs.ICfg, string?, " + typeName + ">";
+            var tryBindDelegateType =
+                "global::PicoCfg.PicoCfgGeneratedTryBindDelegate<" + typeName + ">";
+            var bindIntoDelegateType =
+                "global::PicoCfg.PicoCfgGeneratedBindIntoDelegate<" + typeName + ">";
+            var hasCtor = target.HasPublicParameterlessConstructor
+                ? "(" + bindDelegateType + ")Bind_" + i
+                : "null";
+            var hasTryBind = target.HasPublicParameterlessConstructor
+                ? "(" + tryBindDelegateType + ")TryBind_" + i
+                : "null";
 
-            sb.Append("        global::PicoCfg.CfgBindRuntime.Register<").Append(typeName).AppendLine(">(");
-            sb.AppendLine("            contractVersion: global::PicoCfg.CfgBindRuntime.ContractVersion,");
+            sb.Append("        global::PicoCfg.CfgBindRuntime.Register<")
+                .Append(typeName)
+                .AppendLine(">(");
+            sb.AppendLine(
+                "            contractVersion: global::PicoCfg.CfgBindRuntime.ContractVersion,"
+            );
             sb.Append("            bind: ").Append(hasCtor).AppendLine(",");
             sb.Append("            tryBind: ").Append(hasTryBind).AppendLine(",");
-            sb.Append("            bindInto: (").Append(bindIntoDelegateType).Append(")BindInto_").Append(i).AppendLine(");");
+            sb.Append("            bindInto: (")
+                .Append(bindIntoDelegateType)
+                .Append(")BindInto_")
+                .Append(i)
+                .AppendLine(");");
             sb.AppendLine();
         }
 
@@ -57,7 +68,11 @@ public sealed partial class PicoCfgBindGenerator
 
         if (target.HasPublicParameterlessConstructor)
         {
-            sb.Append("    private static ").Append(typeName).Append(" Bind_").Append(index).AppendLine("(global::PicoCfg.Abs.ICfg cfg, string? section)");
+            sb.Append("    private static ")
+                .Append(typeName)
+                .Append(" Bind_")
+                .Append(index)
+                .AppendLine("(global::PicoCfg.Abs.ICfg cfg, string? section)");
             sb.AppendLine("    {");
             sb.Append("        var instance = new ").Append(typeName).AppendLine("();");
             sb.Append("        BindInto_").Append(index).AppendLine("(cfg, section, instance);");
@@ -65,10 +80,16 @@ public sealed partial class PicoCfgBindGenerator
             sb.AppendLine("    }");
             sb.AppendLine();
 
-            sb.Append("    private static bool TryBind_").Append(index).Append("(global::PicoCfg.Abs.ICfg cfg, string? section, out ").Append(typeName).AppendLine(" value)");
+            sb.Append("    private static bool TryBind_")
+                .Append(index)
+                .Append("(global::PicoCfg.Abs.ICfg cfg, string? section, out ")
+                .Append(typeName)
+                .AppendLine(" value)");
             sb.AppendLine("    {");
             sb.Append("        var instance = new ").Append(typeName).AppendLine("();");
-            sb.Append("        if (!TryBindInto_").Append(index).AppendLine("(cfg, section, instance))");
+            sb.Append("        if (!TryBindInto_")
+                .Append(index)
+                .AppendLine("(cfg, section, instance))");
             sb.AppendLine("        {");
             sb.AppendLine("            value = default!;");
             sb.AppendLine("            return false;");
@@ -80,14 +101,22 @@ public sealed partial class PicoCfgBindGenerator
             sb.AppendLine();
         }
 
-        sb.Append("    private static void BindInto_").Append(index).Append("(global::PicoCfg.Abs.ICfg cfg, string? section, ").Append(typeName).AppendLine(" instance)");
+        sb.Append("    private static void BindInto_")
+            .Append(index)
+            .Append("(global::PicoCfg.Abs.ICfg cfg, string? section, ")
+            .Append(typeName)
+            .AppendLine(" instance)");
         sb.AppendLine("    {");
         foreach (var property in target.Properties)
             AppendBindProperty(sb, target, property, throwOnFailure: true);
         sb.AppendLine("    }");
         sb.AppendLine();
 
-        sb.Append("    private static bool TryBindInto_").Append(index).Append("(global::PicoCfg.Abs.ICfg cfg, string? section, ").Append(typeName).AppendLine(" instance)");
+        sb.Append("    private static bool TryBindInto_")
+            .Append(index)
+            .Append("(global::PicoCfg.Abs.ICfg cfg, string? section, ")
+            .Append(typeName)
+            .AppendLine(" instance)");
         sb.AppendLine("    {");
         sb.AppendLine("        var any = false;");
         foreach (var property in target.Properties)
@@ -97,24 +126,49 @@ public sealed partial class PicoCfgBindGenerator
         sb.AppendLine();
     }
 
-    private static void AppendBindProperty(StringBuilder sb, TargetModel target, PropertyModel property, bool throwOnFailure)
+    private static void AppendBindProperty(
+        StringBuilder sb,
+        TargetModel target,
+        PropertyModel property,
+        bool throwOnFailure
+    )
     {
         var propertyPathLiteral = SymbolDisplay.FormatLiteral(property.Name, true);
-        var targetDisplay = SymbolDisplay.FormatLiteral(property.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat), true);
-        var memberDisplay = SymbolDisplay.FormatLiteral(target.TargetType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat) + "." + property.Name, true);
+        var targetDisplay = SymbolDisplay.FormatLiteral(
+            property.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+            true
+        );
+        var memberDisplay = SymbolDisplay.FormatLiteral(
+            target.TargetType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
+                + "."
+                + property.Name,
+            true
+        );
         var rawName = "__raw_" + property.Name;
         var pathName = "__path_" + property.Name;
         var valueName = "__value_" + property.Name;
 
-        sb.Append("        var ").Append(pathName).Append(" = global::PicoCfg.CfgBindRuntime.CombinePath(section, ").Append(propertyPathLiteral).AppendLine(");");
-        sb.Append("        if (cfg.TryGetValue(").Append(pathName).Append(", out var ").Append(rawName).AppendLine("))");
+        sb.Append("        var ")
+            .Append(pathName)
+            .Append(" = global::PicoCfg.CfgBindRuntime.CombinePath(section, ")
+            .Append(propertyPathLiteral)
+            .AppendLine(");");
+        sb.Append("        if (cfg.TryGetValue(")
+            .Append(pathName)
+            .Append(", out var ")
+            .Append(rawName)
+            .AppendLine("))");
         sb.AppendLine("        {");
         if (!throwOnFailure)
             sb.AppendLine("            any = true;");
 
         if (property.ScalarKind == ScalarKind.String)
         {
-            sb.Append("            instance.").Append(property.Name).Append(" = ").Append(rawName).AppendLine(";");
+            sb.Append("            instance.")
+                .Append(property.Name)
+                .Append(" = ")
+                .Append(rawName)
+                .AppendLine(";");
         }
         else if (property.IsNullable)
         {
@@ -124,14 +178,42 @@ public sealed partial class PicoCfgBindGenerator
             sb.AppendLine("            }");
             sb.AppendLine("            else");
             sb.AppendLine("            {");
-            AppendParseBlock(sb, property, rawName, valueName, pathName, targetDisplay, memberDisplay, throwOnFailure, indent: "                ");
-            sb.Append("                instance.").Append(property.Name).Append(" = ").Append(valueName).AppendLine(";");
+            AppendParseBlock(
+                sb,
+                property,
+                rawName,
+                valueName,
+                pathName,
+                targetDisplay,
+                memberDisplay,
+                throwOnFailure,
+                indent: "                "
+            );
+            sb.Append("                instance.")
+                .Append(property.Name)
+                .Append(" = ")
+                .Append(valueName)
+                .AppendLine(";");
             sb.AppendLine("            }");
         }
         else
         {
-            AppendParseBlock(sb, property, rawName, valueName, pathName, targetDisplay, memberDisplay, throwOnFailure, indent: "            ");
-            sb.Append("            instance.").Append(property.Name).Append(" = ").Append(valueName).AppendLine(";");
+            AppendParseBlock(
+                sb,
+                property,
+                rawName,
+                valueName,
+                pathName,
+                targetDisplay,
+                memberDisplay,
+                throwOnFailure,
+                indent: "            "
+            );
+            sb.Append("            instance.")
+                .Append(property.Name)
+                .Append(" = ")
+                .Append(valueName)
+                .AppendLine(";");
         }
 
         sb.AppendLine("        }");
@@ -149,7 +231,9 @@ public sealed partial class PicoCfgBindGenerator
         string indent
     )
     {
-        var targetTypeName = property.UnderlyingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var targetTypeName = property
+            .UnderlyingType
+            .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         var parseCall = GetParseCall(property.ScalarKind, rawName, valueName, targetTypeName);
 
         sb.Append(indent).Append("if (!").Append(parseCall).AppendLine(")");
@@ -173,23 +257,42 @@ public sealed partial class PicoCfgBindGenerator
         sb.Append(indent).AppendLine("}");
     }
 
-    private static string GetParseCall(ScalarKind scalarKind, string rawName, string valueName, string targetTypeName)
-        => scalarKind switch
+    private static string GetParseCall(
+        ScalarKind scalarKind,
+        string rawName,
+        string valueName,
+        string targetTypeName
+    ) =>
+        scalarKind switch
         {
-            ScalarKind.Boolean => $"global::PicoCfg.CfgBindRuntime.TryParseBoolean({rawName}, out var {valueName})",
-            ScalarKind.Byte => $"global::PicoCfg.CfgBindRuntime.TryParseByte({rawName}, out var {valueName})",
-            ScalarKind.SByte => $"global::PicoCfg.CfgBindRuntime.TryParseSByte({rawName}, out var {valueName})",
-            ScalarKind.Int16 => $"global::PicoCfg.CfgBindRuntime.TryParseInt16({rawName}, out var {valueName})",
-            ScalarKind.UInt16 => $"global::PicoCfg.CfgBindRuntime.TryParseUInt16({rawName}, out var {valueName})",
-            ScalarKind.Int32 => $"global::PicoCfg.CfgBindRuntime.TryParseInt32({rawName}, out var {valueName})",
-            ScalarKind.UInt32 => $"global::PicoCfg.CfgBindRuntime.TryParseUInt32({rawName}, out var {valueName})",
-            ScalarKind.Int64 => $"global::PicoCfg.CfgBindRuntime.TryParseInt64({rawName}, out var {valueName})",
-            ScalarKind.UInt64 => $"global::PicoCfg.CfgBindRuntime.TryParseUInt64({rawName}, out var {valueName})",
-            ScalarKind.Single => $"global::PicoCfg.CfgBindRuntime.TryParseSingle({rawName}, out var {valueName})",
-            ScalarKind.Double => $"global::PicoCfg.CfgBindRuntime.TryParseDouble({rawName}, out var {valueName})",
-            ScalarKind.Decimal => $"global::PicoCfg.CfgBindRuntime.TryParseDecimal({rawName}, out var {valueName})",
-            ScalarKind.Guid => $"global::PicoCfg.CfgBindRuntime.TryParseGuid({rawName}, out var {valueName})",
-            ScalarKind.Enum => $"global::PicoCfg.CfgBindRuntime.TryParseEnum<{targetTypeName}>({rawName}, out var {valueName})",
+            ScalarKind.Boolean
+                => $"global::PicoCfg.CfgBindRuntime.TryParseBoolean({rawName}, out var {valueName})",
+            ScalarKind.Byte
+                => $"global::PicoCfg.CfgBindRuntime.TryParseByte({rawName}, out var {valueName})",
+            ScalarKind.SByte
+                => $"global::PicoCfg.CfgBindRuntime.TryParseSByte({rawName}, out var {valueName})",
+            ScalarKind.Int16
+                => $"global::PicoCfg.CfgBindRuntime.TryParseInt16({rawName}, out var {valueName})",
+            ScalarKind.UInt16
+                => $"global::PicoCfg.CfgBindRuntime.TryParseUInt16({rawName}, out var {valueName})",
+            ScalarKind.Int32
+                => $"global::PicoCfg.CfgBindRuntime.TryParseInt32({rawName}, out var {valueName})",
+            ScalarKind.UInt32
+                => $"global::PicoCfg.CfgBindRuntime.TryParseUInt32({rawName}, out var {valueName})",
+            ScalarKind.Int64
+                => $"global::PicoCfg.CfgBindRuntime.TryParseInt64({rawName}, out var {valueName})",
+            ScalarKind.UInt64
+                => $"global::PicoCfg.CfgBindRuntime.TryParseUInt64({rawName}, out var {valueName})",
+            ScalarKind.Single
+                => $"global::PicoCfg.CfgBindRuntime.TryParseSingle({rawName}, out var {valueName})",
+            ScalarKind.Double
+                => $"global::PicoCfg.CfgBindRuntime.TryParseDouble({rawName}, out var {valueName})",
+            ScalarKind.Decimal
+                => $"global::PicoCfg.CfgBindRuntime.TryParseDecimal({rawName}, out var {valueName})",
+            ScalarKind.Guid
+                => $"global::PicoCfg.CfgBindRuntime.TryParseGuid({rawName}, out var {valueName})",
+            ScalarKind.Enum
+                => $"global::PicoCfg.CfgBindRuntime.TryParseEnum<{targetTypeName}>({rawName}, out var {valueName})",
             _ => throw new InvalidOperationException($"Unexpected scalar kind '{scalarKind}'."),
         };
 }

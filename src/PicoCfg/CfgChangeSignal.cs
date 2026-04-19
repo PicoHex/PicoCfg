@@ -4,7 +4,7 @@ internal sealed class CfgChangeSignal
 {
     private readonly Lock _syncRoot = new();
     private bool _hasChanged;
-    private CancellationTokenSource _cts = new();
+    private readonly CancellationTokenSource _cts = new();
     private readonly Task _signalTask;
 
     public CfgChangeSignal()
@@ -69,10 +69,13 @@ internal sealed class CfgChangeSignal
 
 internal static class CancellationAwaitExtensions
 {
-    public static Task AwaitCancellationAsync(this CancellationToken ct, bool throwOnCancellation = true)
+    public static Task AwaitCancellationAsync(
+        this CancellationToken ct,
+        bool throwOnCancellation = true
+    )
     {
         if (!ct.CanBeCanceled)
-            return Task.Delay(Timeout.InfiniteTimeSpan);
+            return Task.Delay(Timeout.InfiniteTimeSpan, ct);
 
         if (ct.IsCancellationRequested)
             return throwOnCancellation ? Task.FromCanceled(ct) : Task.CompletedTask;
@@ -81,8 +84,8 @@ internal static class CancellationAwaitExtensions
         var registration = ct.Register(
             static state =>
             {
-                var (source, shouldThrow, token) =
-                    ((TaskCompletionSource, bool, CancellationToken))state!;
+                var (source, shouldThrow, token) = ((TaskCompletionSource, bool, CancellationToken))
+                    state!;
                 if (shouldThrow)
                     source.TrySetCanceled(token);
                 else

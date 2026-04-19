@@ -15,7 +15,10 @@ internal static class CfgSnapshotComposer
         };
     }
 
-    public static bool SequenceEqual(IReadOnlyList<ICfgSnapshot> left, IReadOnlyList<ICfgSnapshot> right)
+    public static bool SequenceEqual(
+        IReadOnlyList<ICfgSnapshot> left,
+        IReadOnlyList<ICfgSnapshot> right
+    )
     {
         if (left.Count != right.Count)
             return false;
@@ -60,18 +63,23 @@ internal static class CfgSnapshotComposer
         }
 
         var mergedValues = new Dictionary<string, string>(capacity);
-        for (var i = 0; i < dictionaries.Length; i++)
+        foreach (var t in dictionaries)
         {
             // Merge in provider order so later providers override earlier ones.
-            foreach (var (key, value) in dictionaries[i])
+            foreach (var (key, value) in t)
                 mergedValues[key] = value;
         }
 
-        snapshot = snapshotFactory(mergedValues, ConfigDataComparer.ComputeFingerprint(mergedValues));
+        snapshot = snapshotFactory(
+            mergedValues,
+            ConfigDataComparer.ComputeFingerprint(mergedValues)
+        );
         return true;
     }
 
-    private static ICfgSnapshot CreateCompositeFallbackSnapshot(IReadOnlyList<ICfgSnapshot> providerSnapshots)
+    private static ICfgSnapshot CreateCompositeFallbackSnapshot(
+        IReadOnlyList<ICfgSnapshot> providerSnapshots
+    )
     {
         // Arbitrary ICfgSnapshot implementations can have custom lookup behavior, so fallback preserves
         // provider order and resolves values at read time instead of flattening away that behavior.

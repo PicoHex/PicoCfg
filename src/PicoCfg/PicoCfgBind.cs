@@ -1,8 +1,5 @@
 namespace PicoCfg;
 
-using System.ComponentModel;
-using System.Diagnostics.CodeAnalysis;
-
 [EditorBrowsable(EditorBrowsableState.Never)]
 [Obsolete("Use CfgBind instead.")]
 public static class PicoCfgBind

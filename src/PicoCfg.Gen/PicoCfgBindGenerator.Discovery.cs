@@ -1,7 +1,4 @@
-namespace PicoCfg.Gen.Generator;
-
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
+namespace PicoCfg.Gen;
 
 // Discovers supported entry points and maps invocations to bind operations.
 public sealed partial class PicoCfgBindGenerator
@@ -13,7 +10,8 @@ public sealed partial class PicoCfgBindGenerator
 
         return invocation.Expression switch
         {
-            MemberAccessExpressionSyntax { Name: SimpleNameSyntax simpleName } => IsTargetMethodName(simpleName.Identifier.ValueText),
+            MemberAccessExpressionSyntax { Name: { } simpleName }
+                => IsTargetMethodName(simpleName.Identifier.ValueText),
             SimpleNameSyntax simpleName => IsTargetMethodName(simpleName.Identifier.ValueText),
             _ => false,
         };
@@ -45,37 +43,56 @@ public sealed partial class PicoCfgBindGenerator
         if (!method.IsGenericMethod || method.TypeArguments.Length != 1)
             return false;
 
-        if ((method.ContainingType.Name == "PicoCfgBind" || method.ContainingType.Name == "CfgBind")
-            && method.ContainingType.ContainingNamespace.ToDisplayString() == "PicoCfg")
+        if (
+            (method.ContainingType.Name == "PicoCfgBind" || method.ContainingType.Name == "CfgBind")
+            && method.ContainingType.ContainingNamespace.ToDisplayString() == "PicoCfg"
+        )
         {
             switch (method.Name)
             {
-                case "Bind": operation = BindOperation.Bind; return true;
-                case "TryBind": operation = BindOperation.TryBind; return true;
-                case "BindInto": operation = BindOperation.BindInto; return true;
-                default: return false;
+                case "Bind":
+                    operation = BindOperation.Bind;
+                    return true;
+                case "TryBind":
+                    operation = BindOperation.TryBind;
+                    return true;
+                case "BindInto":
+                    operation = BindOperation.BindInto;
+                    return true;
+                default:
+                    return false;
             }
         }
 
-        if (method.ContainingType.Name == "SvcContainerExtensions" && method.ContainingType.ContainingNamespace.ToDisplayString() == "PicoCfg.DI")
+        if (
+            method.ContainingType.Name != "SvcContainerExtensions"
+            || method.ContainingType.ContainingNamespace.ToDisplayString() != "PicoCfg.DI"
+        )
+            return false;
+        switch (method.Name)
         {
-            switch (method.Name)
-            {
-                case "RegisterCfgTransient": operation = BindOperation.Bind; return true;
-                case "RegisterCfgScoped": operation = BindOperation.Bind; return true;
-                case "RegisterCfgSingleton": operation = BindOperation.Bind; return true;
-                case "RegisterPicoCfgTransient": operation = BindOperation.Bind; return true;
-                case "RegisterPicoCfgScoped": operation = BindOperation.Bind; return true;
-                case "RegisterPicoCfgSingleton": operation = BindOperation.Bind; return true;
-                default: return false;
-            }
+            case "RegisterCfgTransient":
+            case "RegisterCfgScoped":
+            case "RegisterCfgSingleton":
+            case "RegisterPicoCfgTransient":
+            case "RegisterPicoCfgScoped":
+            case "RegisterPicoCfgSingleton":
+                operation = BindOperation.Bind;
+                return true;
         }
 
         return false;
     }
 
-    private static bool IsTargetMethodName(string methodName)
-        => methodName is "Bind" or "TryBind" or "BindInto"
-            or "RegisterCfgTransient" or "RegisterCfgScoped" or "RegisterCfgSingleton"
-            or "RegisterPicoCfgTransient" or "RegisterPicoCfgScoped" or "RegisterPicoCfgSingleton";
+    private static bool IsTargetMethodName(string methodName) =>
+        methodName
+            is "Bind"
+                or "TryBind"
+                or "BindInto"
+                or "RegisterCfgTransient"
+                or "RegisterCfgScoped"
+                or "RegisterCfgSingleton"
+                or "RegisterPicoCfgTransient"
+                or "RegisterPicoCfgScoped"
+                or "RegisterPicoCfgSingleton";
 }

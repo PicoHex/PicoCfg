@@ -1,7 +1,5 @@
 namespace PicoCfg;
 
-using System.Runtime.ExceptionServices;
-
 internal sealed class CfgRoot : ICfgRoot, IInternalCfgRootSnapshotAccessor
 {
     private readonly Lock _disposeSyncRoot = new();

@@ -1,10 +1,4 @@
-namespace PicoCfg.Gen.Generator;
-
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Text;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Text;
+namespace PicoCfg.Gen;
 
 // Orchestrates the incremental generator pipeline and target aggregation.
 [Generator(LanguageNames.CSharp)]
@@ -12,12 +6,19 @@ public sealed partial class PicoCfgBindGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        var calls = context.SyntaxProvider
-            .CreateSyntaxProvider(static (node, _) => IsCandidateInvocation(node), static (ctx, _) => TransformInvocation(ctx))
+        var calls = context
+            .SyntaxProvider
+            .CreateSyntaxProvider(
+                static (node, _) => PicoCfgBindGenerator.IsCandidateInvocation(node),
+                static (ctx, _) => PicoCfgBindGenerator.TransformInvocation(ctx)
+            )
             .Where(static call => call is not null)
             .Select(static (call, _) => call!);
 
-        context.RegisterSourceOutput(calls.Collect(), static (spc, collectedCalls) => Execute(spc, collectedCalls));
+        context.RegisterSourceOutput(
+            calls.Collect(),
+            static (spc, collectedCalls) => Execute(spc, collectedCalls)
+        );
     }
 
     private static void Execute(SourceProductionContext context, ImmutableArray<BindCall> calls)
@@ -25,7 +26,9 @@ public sealed partial class PicoCfgBindGenerator : IIncrementalGenerator
         if (calls.IsDefaultOrEmpty)
             return;
 
-        var targets = new Dictionary<ITypeSymbol, TargetRegistration>(SymbolEqualityComparer.Default);
+        var targets = new Dictionary<ITypeSymbol, TargetRegistration>(
+            SymbolEqualityComparer.Default
+        );
 
         foreach (var call in calls)
         {
@@ -51,6 +54,9 @@ public sealed partial class PicoCfgBindGenerator : IIncrementalGenerator
         if (validTargets.Count == 0)
             return;
 
-        context.AddSource("PicoCfgBindRegistrations.g.cs", SourceText.From(Render(validTargets), Encoding.UTF8));
+        context.AddSource(
+            "PicoCfgBindRegistrations.g.cs",
+            SourceText.From(Render(validTargets), Encoding.UTF8)
+        );
     }
 }

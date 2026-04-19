@@ -124,7 +124,11 @@ public class PicoCfgBindGeneratorDiagnosticsTests
             allowUnsafe: true
         );
 
-        await AssertDiagnosticAsync(diagnostics, "PCFGGEN005", "UnsupportedPropertyTypeSettings.Callback");
+        await AssertDiagnosticAsync(
+            diagnostics,
+            "PCFGGEN005",
+            "UnsupportedPropertyTypeSettings.Callback"
+        );
     }
 
     [Test]
@@ -147,7 +151,11 @@ public class PicoCfgBindGeneratorDiagnosticsTests
             """
         );
 
-        await AssertDiagnosticAsync(diagnostics, "PCFGGEN006", "UnsupportedPropertyShapeSettings.Value");
+        await AssertDiagnosticAsync(
+            diagnostics,
+            "PCFGGEN006",
+            "UnsupportedPropertyShapeSettings.Value"
+        );
     }
 
     [Test]
@@ -173,10 +181,16 @@ public class PicoCfgBindGeneratorDiagnosticsTests
         await AssertDiagnosticAsync(diagnostics, "PCFGGEN007", "StructSettings");
     }
 
-    private static async Task AssertDiagnosticAsync(ImmutableArray<Diagnostic> diagnostics, string id, string expectedMessageFragment)
+    private static async Task AssertDiagnosticAsync(
+        ImmutableArray<Diagnostic> diagnostics,
+        string id,
+        string expectedMessageFragment
+    )
     {
         var matches = diagnostics
-            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error && diagnostic.Id == id)
+            .Where(
+                diagnostic => diagnostic.Severity == DiagnosticSeverity.Error && diagnostic.Id == id
+            )
             .ToImmutableArray();
 
         await Assert.That(matches.Length).IsEqualTo(1);
@@ -186,10 +200,15 @@ public class PicoCfgBindGeneratorDiagnosticsTests
         await Assert.That(match.Id).IsEqualTo(id);
         await Assert.That(match.Location.Kind).IsEqualTo(LocationKind.SourceFile);
         await Assert.That(match.Location.SourceTree).IsNotNull();
-        await Assert.That(match.GetMessage().Contains(expectedMessageFragment, StringComparison.Ordinal)).IsTrue();
+        await Assert
+            .That(match.GetMessage().Contains(expectedMessageFragment, StringComparison.Ordinal))
+            .IsTrue();
     }
 
-    private static async Task<ImmutableArray<Diagnostic>> CompileAndGetDiagnosticsAsync(string source, bool allowUnsafe = false)
+    private static async Task<ImmutableArray<Diagnostic>> CompileAndGetDiagnosticsAsync(
+        string source,
+        bool allowUnsafe = false
+    )
     {
         var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Preview);
         var syntaxTree = CSharpSyntaxTree.ParseText(source, parseOptions);
@@ -199,12 +218,22 @@ public class PicoCfgBindGeneratorDiagnosticsTests
             assemblyName: "PicoCfg.Gen.Tests.DynamicCompilation",
             syntaxTrees: [syntaxTree],
             references: references,
-            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: allowUnsafe)
+            options: new CSharpCompilationOptions(
+                OutputKind.DynamicallyLinkedLibrary,
+                allowUnsafe: allowUnsafe
+            )
         );
 
-        var generator = new PicoCfg.Gen.Generator.PicoCfgBindGenerator();
-        GeneratorDriver driver = CSharpGeneratorDriver.Create([generator.AsSourceGenerator()], parseOptions: parseOptions);
-        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var outputCompilation, out _);
+        var generator = new PicoCfgBindGenerator();
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            [generator.AsSourceGenerator()],
+            parseOptions: parseOptions
+        );
+        driver = driver.RunGeneratorsAndUpdateCompilation(
+            compilation,
+            out var outputCompilation,
+            out _
+        );
 
         var runResult = driver.GetRunResult();
         return outputCompilation.GetDiagnostics().AddRange(runResult.Diagnostics);
@@ -212,8 +241,9 @@ public class PicoCfgBindGeneratorDiagnosticsTests
 
     private static MetadataReference[] GetMetadataReferences()
     {
-        var trustedPlatformAssemblies = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))!
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+        var trustedPlatformAssemblies = (
+            (string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")
+        )!.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
 
         var explicitAssemblies = new[]
         {

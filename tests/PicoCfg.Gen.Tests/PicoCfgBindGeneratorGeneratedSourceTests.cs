@@ -67,10 +67,15 @@ public class PicoCfgBindGeneratorGeneratedSourceTests
         );
     }
 
-    private static async Task AssertGeneratedSourceContainsAsync(string generatedSource, params string[] expectedFragments)
+    private static async Task AssertGeneratedSourceContainsAsync(
+        string generatedSource,
+        params string[] expectedFragments
+    )
     {
         foreach (var expectedFragment in expectedFragments)
-            await Assert.That(generatedSource.Contains(expectedFragment, StringComparison.Ordinal)).IsTrue();
+            await Assert
+                .That(generatedSource.Contains(expectedFragment, StringComparison.Ordinal))
+                .IsTrue();
     }
 
     private static async Task<string> GenerateSourceAsync(string source)
@@ -85,8 +90,11 @@ public class PicoCfgBindGeneratorGeneratedSourceTests
             options: new CSharpCompilationOptions(OutputKind.ConsoleApplication)
         );
 
-        var generator = new PicoCfg.Gen.Generator.PicoCfgBindGenerator();
-        GeneratorDriver driver = CSharpGeneratorDriver.Create([generator.AsSourceGenerator()], parseOptions: parseOptions);
+        var generator = new PicoCfgBindGenerator();
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(
+            [generator.AsSourceGenerator()],
+            parseOptions: parseOptions
+        );
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
 
         var generatedSource = driver
@@ -103,8 +111,9 @@ public class PicoCfgBindGeneratorGeneratedSourceTests
 
     private static MetadataReference[] GetMetadataReferences()
     {
-        var trustedPlatformAssemblies = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))!
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+        var trustedPlatformAssemblies = (
+            (string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")
+        )!.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
 
         var explicitAssemblies = new[]
         {
