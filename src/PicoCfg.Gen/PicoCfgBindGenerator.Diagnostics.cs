@@ -2,6 +2,7 @@ namespace PicoCfg.Gen.Generator;
 
 using Microsoft.CodeAnalysis;
 
+// Defines the shipped diagnostics exposed by the source generator.
 public sealed partial class PicoCfgBindGenerator
 {
     private static class Diagnostics

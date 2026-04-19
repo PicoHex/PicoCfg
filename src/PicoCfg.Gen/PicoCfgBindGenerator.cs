@@ -6,6 +6,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
+// Orchestrates the incremental generator pipeline and target aggregation.
 [Generator(LanguageNames.CSharp)]
 public sealed partial class PicoCfgBindGenerator : IIncrementalGenerator
 {

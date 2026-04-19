@@ -5,6 +5,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 
+// Validates target shapes and translates symbols into generation models.
 public sealed partial class PicoCfgBindGenerator
 {
     private static bool TryAnalyzeTarget(SourceProductionContext context, TargetRegistration registration, out TargetModel model)

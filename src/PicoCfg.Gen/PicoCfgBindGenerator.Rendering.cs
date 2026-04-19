@@ -6,6 +6,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
+// Renders generated registration and binding code from validated models.
 public sealed partial class PicoCfgBindGenerator
 {
     private static string Render(IReadOnlyList<TargetModel> targets)

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 
+// Holds the internal models shared across discovery, analysis, and rendering.
 public sealed partial class PicoCfgBindGenerator
 {
     private sealed class TargetRegistration(ITypeSymbol targetType)
