@@ -3,6 +3,7 @@ using PicoCfg.Gen;
 namespace PicoCfg.DI.Tests;
 
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using PicoCfg.Abs;
@@ -127,6 +128,11 @@ public sealed class AppSettings<T>
             .AddRange(driver.GetRunResult().Diagnostics);
     }
 
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "AOT",
+        "IL3000",
+        Justification = "These Roslyn-based generator tests intentionally construct metadata references from file-backed assemblies during test execution."
+    )]
     private static MetadataReference[] GetMetadataReferences()
     {
         var trustedPlatformAssemblies = (
@@ -146,7 +152,6 @@ public sealed class AppSettings<T>
             .Concat(explicitAssemblies)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(static path => MetadataReference.CreateFromFile(path))
-            .DistinctBy(static reference => reference.Display, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 }

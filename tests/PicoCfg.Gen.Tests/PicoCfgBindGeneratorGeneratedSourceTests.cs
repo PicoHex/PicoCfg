@@ -129,6 +129,11 @@ public class PicoCfgBindGeneratorGeneratedSourceTests
         return generatedSource;
     }
 
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "AOT",
+        "IL3000",
+        Justification = "These Roslyn-based generator tests intentionally construct metadata references from file-backed assemblies during test execution."
+    )]
     private static MetadataReference[] GetMetadataReferences()
     {
         var trustedPlatformAssemblies = (
@@ -146,7 +151,6 @@ public class PicoCfgBindGeneratorGeneratedSourceTests
             .Concat(explicitAssemblies)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(static path => MetadataReference.CreateFromFile(path))
-            .DistinctBy(static reference => reference.Display, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 }

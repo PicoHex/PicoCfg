@@ -157,6 +157,16 @@ public class PicoCfgBindRuntimeTests
     }
 
     [Test]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2060",
+        Justification = "This test intentionally exercises reflection-based generic dispatch to verify the thrown exception shape."
+    )]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "AOT",
+        "IL3050",
+        Justification = "This test intentionally exercises reflection-based generic dispatch to verify the thrown exception shape."
+    )]
     public async Task MissingGeneratedRegistration_FailsFastWithSpecificException()
     {
         await using var root = await Cfg.CreateBuilder().Add(new Dictionary<string, string>()).BuildAsync();

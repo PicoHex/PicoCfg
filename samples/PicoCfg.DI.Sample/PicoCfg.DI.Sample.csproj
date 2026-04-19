@@ -8,6 +8,21 @@
         <LangVersion>latest</LangVersion>
     </PropertyGroup>
 
+    <PropertyGroup Condition="'$(Configuration)' == 'Release' and '$(RuntimeIdentifier)' != ''">
+        <PublishAot>true</PublishAot>
+        <SelfContained>true</SelfContained>
+        <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
+        <IlcOptimizationPreference>Size</IlcOptimizationPreference>
+        <PublishTrimmed>true</PublishTrimmed>
+        <TrimMode>full</TrimMode>
+        <IlcTrimMetadata>true</IlcTrimMetadata>
+        <IlcFoldIdenticalMethodBodies>true</IlcFoldIdenticalMethodBodies>
+        <IlcDisableReflection>true</IlcDisableReflection>
+        <IlcGenerateDebugInfo>false</IlcGenerateDebugInfo>
+        <IlcGenerateCompleteTypeMetadata>false</IlcGenerateCompleteTypeMetadata>
+        <IlcGenerateUnwindStackTraceData>false</IlcGenerateUnwindStackTraceData>
+    </PropertyGroup>
+
     <ItemGroup>
         <PackageReference Include="PicoDI" Version="2026.2.2" />
     </ItemGroup>

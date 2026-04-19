@@ -1,0 +1,13 @@
+{
+  "codeCoverage": {
+    "Configuration": {
+      "Format": "cobertura",
+      "CoverageFileName": "D:\\MyProjects\\PicoHex\\PicoCfg\\TestResults\\TUnitCoverage\\PicoCfg.Tests.Aot\\PicoCfg.Tests.Aot.cobertura.xml",
+      "IncludeTestAssembly": true,
+      "CodeCoverage": {
+        "EnableStaticNativeInstrumentation": true,
+        "EnableStaticNativeInstrumentationRestore": true
+      }
+    }
+  }
+}

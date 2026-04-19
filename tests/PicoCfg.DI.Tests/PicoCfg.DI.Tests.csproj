@@ -7,7 +7,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <IsPackable>false</IsPackable>
         <OutputType>Exe</OutputType>
-        <PublishAot>false</PublishAot>
+        <PublishAot>true</PublishAot>
         <TrimMode>full</TrimMode>
     </PropertyGroup>
 
