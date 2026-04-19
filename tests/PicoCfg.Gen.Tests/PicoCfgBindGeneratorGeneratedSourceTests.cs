@@ -95,15 +95,35 @@ public class PicoCfgBindGeneratorGeneratedSourceTests
             [generator.AsSourceGenerator()],
             parseOptions: parseOptions
         );
-        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+        driver = driver.RunGeneratorsAndUpdateCompilation(
+            compilation,
+            out var outputCompilation,
+            out var driverDiagnostics
+        );
 
-        var generatedSource = driver
-            .GetRunResult()
-            .Results
-            .SelectMany(static result => result.GeneratedSources)
-            .Single(sourceResult => sourceResult.HintName == "PicoCfgBindRegistrations.g.cs")
-            .SourceText
-            .ToString();
+        var runResult = driver.GetRunResult();
+        var generatedSources = runResult.Results.SelectMany(static result => result.GeneratedSources).ToArray();
+        var generatedRegistration = generatedSources.SingleOrDefault(
+            sourceResult => sourceResult.HintName == "PicoCfgBindRegistrations.g.cs"
+        );
+
+        if (generatedRegistration.HintName is null)
+        {
+            var allDiagnostics = outputCompilation
+                .GetDiagnostics()
+                .AddRange(driverDiagnostics)
+                .AddRange(runResult.Diagnostics);
+            var diagnosticText = string.Join(
+                Environment.NewLine,
+                allDiagnostics.Select(static diagnostic => diagnostic.ToString())
+            );
+
+            throw new InvalidOperationException(
+                $"Expected generated source 'PicoCfgBindRegistrations.g.cs' was not produced.{Environment.NewLine}{diagnosticText}"
+            );
+        }
+
+        var generatedSource = generatedRegistration.SourceText.ToString();
 
         await Assert.That(string.IsNullOrWhiteSpace(generatedSource)).IsFalse();
         return generatedSource;

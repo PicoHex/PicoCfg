@@ -205,20 +205,21 @@ public class CfgChangeSignalTests
     {
         var signal = new CfgChangeSignal();
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         var pollingTask = Task.Run(async () =>
         {
             started.TrySetResult();
-            for (var i = 0; i < 10_000; i++)
+            while (!cts.Token.IsCancellationRequested)
             {
                 if (signal.HasChanged)
                     return true;
 
-                await Task.Yield();
+                await Task.Delay(TimeSpan.FromMilliseconds(1), cts.Token);
             }
 
             return false;
-        });
+        }, cts.Token);
 
         await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         signal.NotifyChanged();

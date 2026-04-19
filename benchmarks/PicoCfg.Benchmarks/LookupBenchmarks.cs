@@ -62,8 +62,7 @@ public partial class LookupBenchmarks
     [Benchmark]
     public void PicoCfg()
     {
-        var snapshot = _picoRoot.Snapshot;
         for (var i = 0; i < _keys.Length; i++)
-            _ = snapshot.GetValue(_keys[i]);
+            _ = _picoRoot.GetValue(_keys[i]);
     }
 }

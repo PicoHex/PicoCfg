@@ -59,13 +59,12 @@ public partial class MixedWorkloadBenchmarks
             builder.Add(_dataSets[i]);
 
         var root = builder.BuildAsync().AsTask().GetAwaiter().GetResult();
-        var snapshot = root.Snapshot;
-        _ = snapshot.GetValue(_keys[0]);
+        _ = root.GetValue(_keys[0]);
 
         for (var pass = 0; pass < LookupPassCount; pass++)
         {
             for (var i = 0; i < _keys.Length; i++)
-                _ = snapshot.GetValue(_keys[i]);
+                _ = root.GetValue(_keys[i]);
         }
 
         root.DisposeAsync().AsTask().GetAwaiter().GetResult();

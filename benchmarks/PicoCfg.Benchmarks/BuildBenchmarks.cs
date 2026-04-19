@@ -50,7 +50,7 @@ public partial class BuildBenchmarks
 
         var root = builder.BuildAsync().AsTask().GetAwaiter().GetResult();
 
-        _ = root.Snapshot.GetValue("Section:Key0");
+        _ = root.GetValue("Section:Key0");
 
         root.DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
