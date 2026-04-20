@@ -35,11 +35,12 @@ Usa `PicoCfg.Gen` cuando quieras enlazar vistas de configuración de PicoCfg a P
 dotnet add package PicoCfg.Gen
 ```
 
-Usa `PicoCfg.DI` cuando quieras helpers de registro compatibles con PicoDI para `ICfgRoot`, `ICfg` y servicios de configuración respaldados por binding generado. En modo project-reference, mantén una referencia directa a `PicoCfg.Gen` en la aplicación que consume el paquete para que el generador del binder se ejecute para tus llamadas `RegisterCfg*<T>`:
+Usa `PicoCfg.DI` cuando quieras helpers de registro compatibles con PicoDI para `ICfgRoot`, `ICfg` y servicios de configuración respaldados por binding generado. Agrega además `PicoDI` en la aplicación consumidora cuando necesites la implementación runtime del contenedor, como `SvcContainer`. En modo project-reference, mantén una referencia directa a `PicoCfg.Gen` en la aplicación que consume el paquete para que el generador del binder se ejecute para tus llamadas `RegisterCfg*<T>`:
 
 ```bash
 dotnet add package PicoCfg.DI
 dotnet add package PicoCfg.Gen
+dotnet add package PicoDI
 ```
 
 ## Inicio rápido

@@ -35,11 +35,12 @@ dotnet add package PicoCfg.Abs
 dotnet add package PicoCfg.Gen
 ```
 
-Используйте `PicoCfg.DI`, если вам нужны совместимые с PicoDI средства регистрации для `ICfgRoot`, `ICfg` и сервисов конфигурации на основе generated binding. В режиме project-reference сохраняйте прямую ссылку на `PicoCfg.Gen` в приложении-потребителе, чтобы binder generator запускался для ваших вызовов `RegisterCfg*<T>`:
+Используйте `PicoCfg.DI`, если вам нужны совместимые с PicoDI средства регистрации для `ICfgRoot`, `ICfg` и сервисов конфигурации на основе generated binding. Если приложению-потребителю нужна runtime-реализация контейнера, такая как `SvcContainer`, дополнительно подключите `PicoDI`. В режиме project-reference сохраняйте прямую ссылку на `PicoCfg.Gen` в приложении-потребителе, чтобы binder generator запускался для ваших вызовов `RegisterCfg*<T>`:
 
 ```bash
 dotnet add package PicoCfg.DI
 dotnet add package PicoCfg.Gen
+dotnet add package PicoDI
 ```
 
 ## Быстрый старт

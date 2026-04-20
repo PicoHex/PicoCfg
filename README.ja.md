@@ -35,11 +35,12 @@ PicoCfg の構成ビューを AOT フレンドリーに source generation でフ
 dotnet add package PicoCfg.Gen
 ```
 
-`ICfgRoot`、`ICfg`、および生成バインディングを使う構成サービス向けの PicoDI registration helper が必要な場合は `PicoCfg.DI` を使用します。project-reference モードでは、`RegisterCfg*<T>` 呼び出しに対して binder generator が動作するよう、利用側アプリで `PicoCfg.Gen` への直接参照を維持してください。
+`ICfgRoot`、`ICfg`、および生成バインディングを使う構成サービス向けの PicoDI registration helper が必要な場合は `PicoCfg.DI` を使用します。`SvcContainer` のようなランタイムのコンテナー実装が必要な利用側アプリでは、追加で `PicoDI` も参照してください。project-reference モードでは、`RegisterCfg*<T>` 呼び出しに対して binder generator が動作するよう、利用側アプリで `PicoCfg.Gen` への直接参照を維持してください。
 
 ```bash
 dotnet add package PicoCfg.DI
 dotnet add package PicoCfg.Gen
+dotnet add package PicoDI
 ```
 
 ## クイックスタート

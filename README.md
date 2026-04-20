@@ -35,11 +35,12 @@ Use `PicoCfg.Gen` when you want AOT-safe source-generated binding from PicoCfg c
 dotnet add package PicoCfg.Gen
 ```
 
-Use `PicoCfg.DI` when you want PicoDI registration helpers for `ICfgRoot`, `ICfg`, and generated binding-backed configuration services. In project-reference mode, keep a direct `PicoCfg.Gen` reference in the consuming app so the binder generator runs for your `RegisterCfg*<T>` calls:
+Use `PicoCfg.DI` when you want PicoDI registration helpers for `ICfgRoot`, `ICfg`, and generated binding-backed configuration services. Add `PicoDI` in the consuming app when you need the runtime container implementation such as `SvcContainer`. In project-reference mode, keep a direct `PicoCfg.Gen` reference in the consuming app so the binder generator runs for your `RegisterCfg*<T>` calls:
 
 ```bash
 dotnet add package PicoCfg.DI
 dotnet add package PicoCfg.Gen
+dotnet add package PicoDI
 ```
 
 ## Quick Start

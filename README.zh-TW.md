@@ -35,11 +35,12 @@ dotnet add package PicoCfg.Abs
 dotnet add package PicoCfg.Gen
 ```
 
-如果你想使用 `PicoCfg.DI` 為 `ICfgRoot`、`ICfg` 與以生成綁定為基礎的設定服務提供 PicoDI 註冊輔助，請使用 `PicoCfg.DI`。在 project-reference 模式下，請在使用端應用中保留對 `PicoCfg.Gen` 的直接參考，這樣 binder generator 才會為你的 `RegisterCfg*<T>` 呼叫執行：
+如果你想使用 `PicoCfg.DI` 為 `ICfgRoot`、`ICfg` 與以生成綁定為基礎的設定服務提供 PicoDI 註冊輔助，請使用 `PicoCfg.DI`。如果你在消費端應用中需要 `SvcContainer` 這類執行期容器實作，請另外安裝 `PicoDI`。在 project-reference 模式下，請在使用端應用中保留對 `PicoCfg.Gen` 的直接參考，這樣 binder generator 才會為你的 `RegisterCfg*<T>` 呼叫執行：
 
 ```bash
 dotnet add package PicoCfg.DI
 dotnet add package PicoCfg.Gen
+dotnet add package PicoDI
 ```
 
 ## 快速開始
