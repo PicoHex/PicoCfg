@@ -3,34 +3,6 @@ namespace PicoCfg.DI.Tests;
 public sealed class SvcContainerExtensionsTests
 {
     [Test]
-    public async Task RegisterPicoCfg_RegistersRootAndCfgWithoutSnapshotService()
-    {
-        var state = CreateSettingsData("Before", 1);
-        var version = 0;
-
-        await using var root = await CreateRootAsync(() => state, () => version);
-        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
-
-        container.RegisterPicoCfg(root);
-
-        using var scope = container.CreateScope();
-        var resolvedRoot = scope.GetService<ICfgRoot>();
-        var cfg = scope.GetService<ICfg>();
-
-        await Assert.That(resolvedRoot).IsSameReferenceAs(root);
-        await Assert.That(cfg.GetValue("App:Name")).IsEqualTo("Before");
-        await Assert.That(() => scope.GetService<ICfgSnapshot>()).Throws<PicoDiException>();
-
-        state = CreateSettingsData("After", 2);
-        version++;
-        await root.ReloadAsync();
-
-        var cfgAfter = scope.GetService<ICfg>();
-
-        await Assert.That(cfgAfter.GetValue("App:Name")).IsEqualTo("After");
-    }
-
-    [Test]
     public async Task RegisterCfgRoot_RegistersRootWithoutDefaultSnapshotService()
     {
         var state = CreateSettingsData("Before", 1);
@@ -70,34 +42,6 @@ public sealed class SvcContainerExtensionsTests
         container
             .RegisterCfgRoot(root)
             .RegisterCfgTransient<AppSettings>("App");
-
-        using var scope = container.CreateScope();
-        var before = scope.GetService<AppSettings>();
-
-        state = CreateSettingsData("After", 2);
-        version++;
-        await root.ReloadAsync();
-
-        var after = scope.GetService<AppSettings>();
-
-        await Assert.That(before).IsNotSameReferenceAs(after);
-        await Assert.That(before.Name).IsEqualTo("Before");
-        await Assert.That(after.Name).IsEqualTo("After");
-        await Assert.That(after.Count).IsEqualTo(2);
-    }
-
-    [Test]
-    public async Task RegisterPicoCfgTransient_BindsCurrentSnapshotPerResolution()
-    {
-        var state = CreateSettingsData("Before", 1);
-        var version = 0;
-
-        await using var root = await CreateRootAsync(() => state, () => version);
-        await using var container = new SvcContainer(autoConfigureFromGenerator: false);
-
-        container
-            .RegisterPicoCfg(root)
-            .RegisterPicoCfgTransient<AppSettings>("App");
 
         using var scope = container.CreateScope();
         var before = scope.GetService<AppSettings>();
@@ -186,7 +130,7 @@ public sealed class SvcContainerExtensionsTests
         var thrown = await Assert.That(() => scope.GetService<AppSettings>()).Throws<InvalidOperationException>();
 
         await Assert.That(thrown).IsNotNull();
-        await Assert.That(thrown.Message).Contains("RegisterPicoCfg(...)");
+        await Assert.That(thrown.Message).Contains("RegisterCfgRoot(...)");
     }
 
     private static async Task<ICfgRoot> CreateRootAsync(

@@ -120,70 +120,7 @@ public static class CfgBindRuntime
     }
 }
 
-[EditorBrowsable(EditorBrowsableState.Never)]
-[Obsolete("Use CfgBindRuntime instead.")]
-public static class PicoCfgBindRuntime
-{
-    public const int ContractVersion = CfgBindRuntime.ContractVersion;
 
-    public static void Register<T>(
-        int contractVersion,
-        Func<ICfg, string?, T>? bind,
-        PicoCfgGeneratedTryBindDelegate<T>? tryBind,
-        PicoCfgGeneratedBindIntoDelegate<T> bindInto
-    ) => CfgBindRuntime.Register(contractVersion, bind, tryBind, bindInto);
-
-    public static string CombinePath(string? section, string propertyName) =>
-        CfgBindRuntime.CombinePath(section, propertyName);
-
-    public static FormatException CreateConversionException(
-        string path,
-        string targetTypeDisplayName,
-        string memberDisplayName
-    ) => CfgBindRuntime.CreateConversionException(path, targetTypeDisplayName, memberDisplayName);
-
-    public static bool TryParseBoolean(string? raw, out bool value) =>
-        CfgBindRuntime.TryParseBoolean(raw, out value);
-
-    public static bool TryParseByte(string? raw, out byte value) =>
-        CfgBindRuntime.TryParseByte(raw, out value);
-
-    public static bool TryParseSByte(string? raw, out sbyte value) =>
-        CfgBindRuntime.TryParseSByte(raw, out value);
-
-    public static bool TryParseInt16(string? raw, out short value) =>
-        CfgBindRuntime.TryParseInt16(raw, out value);
-
-    public static bool TryParseUInt16(string? raw, out ushort value) =>
-        CfgBindRuntime.TryParseUInt16(raw, out value);
-
-    public static bool TryParseInt32(string? raw, out int value) =>
-        CfgBindRuntime.TryParseInt32(raw, out value);
-
-    public static bool TryParseUInt32(string? raw, out uint value) =>
-        CfgBindRuntime.TryParseUInt32(raw, out value);
-
-    public static bool TryParseInt64(string? raw, out long value) =>
-        CfgBindRuntime.TryParseInt64(raw, out value);
-
-    public static bool TryParseUInt64(string? raw, out ulong value) =>
-        CfgBindRuntime.TryParseUInt64(raw, out value);
-
-    public static bool TryParseSingle(string? raw, out float value) =>
-        CfgBindRuntime.TryParseSingle(raw, out value);
-
-    public static bool TryParseDouble(string? raw, out double value) =>
-        CfgBindRuntime.TryParseDouble(raw, out value);
-
-    public static bool TryParseDecimal(string? raw, out decimal value) =>
-        CfgBindRuntime.TryParseDecimal(raw, out value);
-
-    public static bool TryParseGuid(string? raw, out Guid value) =>
-        CfgBindRuntime.TryParseGuid(raw, out value);
-
-    public static bool TryParseEnum<TEnum>(string? raw, out TEnum value)
-        where TEnum : struct, Enum => CfgBindRuntime.TryParseEnum(raw, out value);
-}
 
 [EditorBrowsable(EditorBrowsableState.Never)]
 public delegate bool PicoCfgGeneratedTryBindDelegate<T>(

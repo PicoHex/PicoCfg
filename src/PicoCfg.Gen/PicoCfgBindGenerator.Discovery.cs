@@ -124,7 +124,7 @@ public sealed partial class PicoCfgBindGenerator
         operation = default;
 
         if (
-            (operationMethod.ContainingType.Name == "PicoCfgBind" || operationMethod.ContainingType.Name == "CfgBind")
+            operationMethod.ContainingType.Name == "CfgBind"
             && operationMethod.ContainingType.ContainingNamespace.ToDisplayString() == "PicoCfg"
         )
         {
@@ -147,10 +147,7 @@ public sealed partial class PicoCfgBindGenerator
         var isDiRegistrationName = operationMethod.Name
             is "RegisterCfgTransient"
                 or "RegisterCfgScoped"
-                or "RegisterCfgSingleton"
-                or "RegisterPicoCfgTransient"
-                or "RegisterPicoCfgScoped"
-                or "RegisterPicoCfgSingleton";
+                or "RegisterCfgSingleton";
         if (!isDiRegistrationName)
             return false;
 
@@ -168,9 +165,6 @@ public sealed partial class PicoCfgBindGenerator
             case "RegisterCfgTransient":
             case "RegisterCfgScoped":
             case "RegisterCfgSingleton":
-            case "RegisterPicoCfgTransient":
-            case "RegisterPicoCfgScoped":
-            case "RegisterPicoCfgSingleton":
                 operation = BindOperation.Bind;
                 return true;
         }
@@ -185,17 +179,11 @@ public sealed partial class PicoCfgBindGenerator
                 or "BindInto"
                 or "RegisterCfgTransient"
                 or "RegisterCfgScoped"
-                or "RegisterCfgSingleton"
-                or "RegisterPicoCfgTransient"
-                or "RegisterPicoCfgScoped"
-                or "RegisterPicoCfgSingleton";
+                or "RegisterCfgSingleton";
 
     private static bool IsDiRegistrationMethodName(string methodName) =>
         methodName
             is "RegisterCfgTransient"
                 or "RegisterCfgScoped"
-                or "RegisterCfgSingleton"
-                or "RegisterPicoCfgTransient"
-                or "RegisterPicoCfgScoped"
-                or "RegisterPicoCfgSingleton";
+                or "RegisterCfgSingleton";
 }

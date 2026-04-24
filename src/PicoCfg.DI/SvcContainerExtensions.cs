@@ -4,7 +4,7 @@ public static class SvcContainerExtensions
 {
     extension(ISvcContainer container)
     {
-        public ISvcContainer RegisterPicoCfg(ICfgRoot root)
+        public ISvcContainer RegisterCfgRoot(ICfgRoot root)
         {
             ArgumentNullException.ThrowIfNull(container);
             ArgumentNullException.ThrowIfNull(root);
@@ -14,32 +14,17 @@ public static class SvcContainerExtensions
                 .RegisterTransient<ICfg>(static scope => scope.GetService<ICfgRoot>());
         }
 
-        public ISvcContainer RegisterCfgRoot(ICfgRoot root)
-            => container.RegisterPicoCfg(root);
-
-        public ISvcContainer RegisterPicoCfgTransient<T>(string? section = null)
+        public ISvcContainer RegisterCfgTransient<T>(string? section = null)
             where T : class
             => container.RegisterTransient<T>(scope => Bind<T>(scope, section));
 
-        public ISvcContainer RegisterPicoCfgScoped<T>(string? section = null)
+        public ISvcContainer RegisterCfgScoped<T>(string? section = null)
             where T : class
             => container.RegisterScoped<T>(scope => Bind<T>(scope, section));
 
-        public ISvcContainer RegisterPicoCfgSingleton<T>(string? section = null)
-            where T : class
-            => container.RegisterSingleton<T>(scope => Bind<T>(scope, section));
-
-        public ISvcContainer RegisterCfgTransient<T>(string? section = null)
-            where T : class
-            => container.RegisterPicoCfgTransient<T>(section);
-
-        public ISvcContainer RegisterCfgScoped<T>(string? section = null)
-            where T : class
-            => container.RegisterPicoCfgScoped<T>(section);
-
         public ISvcContainer RegisterCfgSingleton<T>(string? section = null)
             where T : class
-            => container.RegisterPicoCfgSingleton<T>(section);
+            => container.RegisterSingleton<T>(scope => Bind<T>(scope, section));
     }
 
     private static T Bind<T>(ISvcScope scope, string? section)
@@ -56,7 +41,7 @@ public static class SvcContainerExtensions
             return CfgBind.Bind<T>(cfg, section);
 
         throw new InvalidOperationException(
-            "No PicoCfg configuration source is registered. Call RegisterPicoCfg(...) or RegisterCfgRoot(...) before registering bound configuration services."
+            "No PicoCfg configuration source is registered. Call RegisterCfgRoot(...) before registering bound configuration services."
         );
     }
 

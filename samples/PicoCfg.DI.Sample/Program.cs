@@ -21,9 +21,9 @@ await using var root = await Cfg
 await using var container = new SvcContainer(autoConfigureFromGenerator: false);
 
 container
-    .RegisterPicoCfg(root)
-    .RegisterPicoCfgSingleton<AppSettings>("App")
-    .RegisterPicoCfgScoped<RequestSettings>("Request");
+    .RegisterCfgRoot(root)
+    .RegisterCfgSingleton<AppSettings>("App")
+    .RegisterCfgScoped<RequestSettings>("Request");
 
 using var scope = container.CreateScope();
 var cfg = scope.GetService<ICfg>();
