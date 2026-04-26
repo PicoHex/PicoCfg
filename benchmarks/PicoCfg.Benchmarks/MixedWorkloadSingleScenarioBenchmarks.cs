@@ -1,4 +1,4 @@
-[BenchmarkClass(Description = "Build configuration root and perform repeated lookups (single scenario)")]
+[BenchmarkClass(Description = "Steady-state lookup: build once (GlobalSetup), measure lookup throughput (single scenario)")]
 public sealed partial class MixedWorkloadSingleScenarioBenchmarks
 {
     private readonly int _n;
@@ -6,6 +6,8 @@ public sealed partial class MixedWorkloadSingleScenarioBenchmarks
     private readonly int _lookupPassCount;
     private IReadOnlyList<Dictionary<string, string>> _dataSets = null!;
     private string[] _keys = null!;
+    private IConfigurationRoot _msConfig = null!;
+    private ICfgRoot _picoRoot = null!;
 
     public MixedWorkloadSingleScenarioBenchmarks(int n, int providerCount, int lookupPassCount)
     {
@@ -29,45 +31,47 @@ public sealed partial class MixedWorkloadSingleScenarioBenchmarks
 
         _dataSets = dataSets;
         _keys = _dataSets[^1].Keys.ToArray();
+
+        var msBuilder = new ConfigurationBuilder();
+        for (var i = 0; i < _dataSets.Count; i++)
+        {
+            msBuilder.AddInMemoryCollection(
+                _dataSets[i].ToDictionary(static pair => pair.Key, static pair => (string?)pair.Value)
+            );
+        }
+
+        _msConfig = msBuilder.Build();
+
+        var builder = Cfg.CreateBuilder();
+        for (var i = 0; i < _dataSets.Count; i++)
+            builder.Add(_dataSets[i]);
+
+        _picoRoot = builder.BuildAsync().AsTask().GetAwaiter().GetResult();
+    }
+
+    [GlobalCleanup]
+    public void Cleanup()
+    {
+        _picoRoot.DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
     [Benchmark(Baseline = true)]
     public void MsConfig()
     {
-        var builder = new ConfigurationBuilder();
-        for (var i = 0; i < _dataSets.Count; i++)
-        {
-            builder.AddInMemoryCollection(
-                _dataSets[i].ToDictionary(static pair => pair.Key, static pair => (string?)pair.Value)
-            );
-        }
-
-        var config = builder.Build();
-        _ = config[_keys[0]];
-
         for (var pass = 0; pass < _lookupPassCount; pass++)
         {
             for (var i = 0; i < _keys.Length; i++)
-                _ = config[_keys[i]];
+                _ = _msConfig[_keys[i]];
         }
     }
 
     [Benchmark]
     public void PicoCfg()
     {
-        var builder = Cfg.CreateBuilder();
-        for (var i = 0; i < _dataSets.Count; i++)
-            builder.Add(_dataSets[i]);
-
-        var root = builder.BuildAsync().AsTask().GetAwaiter().GetResult();
-        _ = root.GetValue(_keys[0]);
-
         for (var pass = 0; pass < _lookupPassCount; pass++)
         {
             for (var i = 0; i < _keys.Length; i++)
-                _ = root.GetValue(_keys[i]);
+                _ = _picoRoot.GetValue(_keys[i]);
         }
-
-        root.DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 }
