@@ -1,8 +1,5 @@
 namespace PicoCfg.Gen;
 
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-
 // Discovers supported entry points and maps invocations to bind operations.
 public sealed partial class PicoCfgBindGenerator
 {

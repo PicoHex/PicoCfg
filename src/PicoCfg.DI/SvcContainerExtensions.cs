@@ -55,6 +55,7 @@ public static class SvcContainerExtensions
         }
         catch (PicoDiException)
         {
+            /* PicoDiException expected when no services of type T are registered */
             return [];
         }
     }
