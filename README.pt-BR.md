@@ -48,6 +48,7 @@ dotnet add package PicoDI
 ```csharp
 using System.Text;
 using PicoCfg;
+using PicoCfg.Abs;
 using PicoCfg.Extensions;
 
 await using var root = await Cfg
@@ -136,6 +137,7 @@ Use `RegisterCfgRoot(...)` quando você já tiver um `ICfgRoot`, e `RegisterCfgT
 
 ```csharp
 using PicoCfg;
+using PicoCfg.Abs;
 using PicoCfg.DI;
 using PicoCfg.Extensions;
 using PicoDI;
@@ -287,6 +289,7 @@ Estes comandos correspondem ao workflow de CI do repositório:
 dotnet restore tests/PicoCfg.Tests/PicoCfg.Tests.csproj -p:UseProjectReferences=true
 dotnet build tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-restore -p:UseProjectReferences=true
 dotnet test --project tests/PicoCfg.Tests/PicoCfg.Tests.csproj --configuration Release --no-build --verbosity normal -p:UseProjectReferences=true
+dotnet test --project tests/PicoCfg.Gen.Tests/PicoCfg.Gen.Tests.csproj --configuration Release --no-build --verbosity normal -p:UseProjectReferences=true
 dotnet test --project tests/PicoCfg.DI.Tests/PicoCfg.DI.Tests.csproj --configuration Release --no-build --verbosity normal -p:UseProjectReferences=true
 ```
 
